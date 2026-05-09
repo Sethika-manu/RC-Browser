@@ -3,6 +3,18 @@
 
 use tauri::{LogicalPosition, LogicalSize, Runtime, Manager};
 use tauri::webview::WebviewBuilder;
+use sysinfo::System;
+use std::sync::Mutex;
+use serde::Serialize;
+
+struct SystemState(Mutex<System>);
+
+#[derive(Serialize)]
+struct Metrics {
+    cpu: f32,
+    ram: u64,
+    ping: u64,
+}
 
 #[tauri::command]
 async fn open_webview<R: Runtime>(
@@ -134,8 +146,31 @@ async fn go_forward<R: tauri::Runtime>(
     }
 }
 
+#[tauri::command]
+async fn get_system_metrics(state: tauri::State<'_, SystemState>) -> Result<Metrics, String> {
+    let mut sys = state.0.lock().unwrap();
+    sys.refresh_cpu();
+    sys.refresh_memory();
+    
+    let cpu_usage = sys.global_cpu_info().cpu_usage();
+    let used_memory = sys.used_memory() / 1024 / 1024; // MB
+    
+    // Simulate ping for now
+    let ping = 24 + (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() % 10);
+    
+    Ok(Metrics {
+        cpu: cpu_usage,
+        ram: used_memory,
+        ping: ping,
+    })
+}
+
 fn main() {
+  let mut sys = System::new_all();
+  sys.refresh_all();
+  
   tauri::Builder::default()
+    .manage(SystemState(Mutex::new(sys)))
     .invoke_handler(tauri::generate_handler![
         open_webview, 
         navigate_webview, 
@@ -143,7 +178,8 @@ fn main() {
         set_webview_visibility,
         set_webview_bounds,
         go_back,
-        go_forward
+        go_forward,
+        get_system_metrics
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

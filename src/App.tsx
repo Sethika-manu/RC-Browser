@@ -5,7 +5,8 @@ import { StatusBar } from "./components/StatusBar";
 import { CommandPalette } from "./components/CommandPalette";
 import { Viewport } from "./components/Viewport";
 import { Home } from "./components/Home";
-import { motion, AnimatePresence } from "framer-motion";
+import { Settings } from "./components/Settings";
+import { Console } from "./components/Console";
 import { listen } from "@tauri-apps/api/event";
 
 interface Session {
@@ -14,11 +15,12 @@ interface Session {
   url: string;
 }
 
-function App() {
+export default function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [searchValue, setSearchValue] = useState("");
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [appView, setAppView] = useState<'browser' | 'settings' | 'console'>('browser');
 
   const activeSession = sessions.find(s => s.id === activeSessionId);
 
@@ -50,7 +52,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    // Sync search bar when active session changes
     if (activeSession) {
       setSearchValue(activeSession.url === "about:blank" ? "" : activeSession.url);
     } else {
@@ -60,8 +61,8 @@ function App() {
 
   const handleNavigate = (url: string) => {
     if (!activeSessionId) {
-      // If no active session, create one
       handleCreateSession(url);
+      setAppView('browser');
       return;
     }
 
@@ -79,6 +80,7 @@ function App() {
     };
     setSessions(prev => [...prev, newSession]);
     setActiveSessionId(newSession.id);
+    setAppView('browser');
   };
 
   const handleCloseSession = (id: string) => {
@@ -94,43 +96,84 @@ function App() {
   const handleGoHome = () => {
     setActiveSessionId(null);
     setSearchValue("");
+    setAppView('browser');
   };
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 text-foreground overflow-hidden font-sans">
-      <TitleBar 
-        onNavigate={handleNavigate} 
-        searchValue={searchValue}
-        onSearchChange={setSearchValue}
-        activeSessionId={activeSessionId}
-      />
+    <div className="flex flex-col h-screen bg-[#0a0a0a] text-white overflow-hidden font-sans">
+      <div className="relative z-[100]">
+        <TitleBar 
+          onNavigate={handleNavigate} 
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          activeSessionId={activeSessionId}
+        />
+      </div>
       
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar 
-          sessions={sessions}
-          activeSessionId={activeSessionId}
-          onSessionSelect={setActiveSessionId}
-          onSessionClose={handleCloseSession}
-          onNewSession={() => handleCreateSession()}
-          onHomeClick={handleGoHome}
-          onSearchClick={() => setIsPaletteOpen(true)}
-        />
-        
-        <main className="flex-1 relative overflow-hidden bg-[#050505]">
-          <AnimatePresence mode="wait">
-            {(!activeSessionId || (activeSession && activeSession.url === "")) ? (
-              <Home onNavigate={handleNavigate} />
-            ) : null}
-          </AnimatePresence>
-
-          {/* The centralized WebviewManager handles all native instances */}
-          <Viewport 
+        <div className="relative z-[100]">
+          <Sidebar 
             sessions={sessions}
             activeSessionId={activeSessionId}
-            isPaletteOpen={isPaletteOpen}
+            onSessionSelect={(id) => {
+              setActiveSessionId(id);
+              setAppView('browser');
+            }}
+            onSessionClose={handleCloseSession}
+            onNewSession={() => handleCreateSession()}
+            onHomeClick={handleGoHome}
+            onSearchClick={() => setIsPaletteOpen(true)}
+            onSettingsClick={() => setAppView('settings')}
+            onConsoleClick={() => setAppView('console')}
+            activeView={appView}
           />
+        </div>
+        
+        <main className="flex-1 relative overflow-hidden bg-[#0a0a0a] z-0">
           
-          <div className="absolute right-0 top-0 bottom-0 w-[1px] bg-border/50 pointer-events-none" />
+          {/* 1. Viewport: Native Webview container (Always mounted) */}
+          <div className={`absolute inset-0 z-0 ${appView === 'browser' ? 'visible' : 'invisible pointer-events-none'}`}>
+            <Viewport 
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              isPaletteOpen={isPaletteOpen}
+              appView={appView}
+            />
+          </div>
+
+          {/* 2. OVERLAY LAYER: Strictly mutually exclusive rendering */}
+          <div className="absolute inset-0 z-10">
+            {(() => {
+              if (appView === 'settings') {
+                return (
+                  <div className="absolute inset-0 z-20 bg-[#0a0a0a]">
+                    <Settings />
+                  </div>
+                );
+              }
+              
+              if (appView === 'console') {
+                return (
+                  <div className="absolute inset-0 z-20 bg-[#0a0a0a]">
+                    <Console />
+                  </div>
+                );
+              }
+
+              if (appView === 'browser') {
+                const isHomeVisible = !activeSessionId || (activeSession && activeSession.url === "");
+                if (isHomeVisible) {
+                  return (
+                    <div className="absolute inset-0 z-20 bg-[#0a0a0a]">
+                      <Home onNavigate={handleNavigate} />
+                    </div>
+                  );
+                }
+              }
+
+              return null;
+            })()}
+          </div>
         </main>
       </div>
 
@@ -143,5 +186,3 @@ function App() {
     </div>
   );
 }
-
-export default App;

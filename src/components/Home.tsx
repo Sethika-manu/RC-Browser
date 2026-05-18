@@ -48,7 +48,7 @@ export const Home = ({ onNavigate }: HomeProps) => {
             className="p-4 rounded-xl bg-neutral-100/50 dark:bg-neutral-900/50 border border-neutral-200 dark:border-border text-left hover:border-accent/30 dark:hover:border-accent/30 transition-colors cursor-pointer group shadow-sm dark:shadow-none"
           >
             <div className="text-[10px] font-bold text-accent mb-1 uppercase tracking-widest">{t('home_docs')}</div>
-            <div className="text-sm font-medium text-neutral-700 dark:text-neutral-300 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors">Wikipedia</div>
+            <div className="text-sm font-medium text-neutral-700 dark:text-neutral-300 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors">shashinda</div>
           </div>
           <div 
             onClick={() => onNavigate("https://youtube.com")}

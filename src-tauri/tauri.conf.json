@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "RCBrowsing",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "identifier": "com.royalcodex.browser.v1",
   "build": {
     "beforeBuildCommand": "npm run build",
@@ -27,6 +27,7 @@
   },
   "bundle": {
     "active": true,
+    "publisher": "Royal Codex Software Solutions",
     "targets": [
       "msi",
       "nsis"
@@ -42,6 +43,14 @@
     ],
     "windows": {
       "certificateThumbprint": null
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://raw.githubusercontent.com/Sethika-manu/dev-web/main/update.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVFODFGQTNGMjM5QjVGMjcKUldRblg1c2pQL3FCWHJrZnFINlQvZUxRSFhiQUhsMXNUaERRKzlaWXBrTmxKU2pEdVc3QytUNzIK"
     }
   }
 }

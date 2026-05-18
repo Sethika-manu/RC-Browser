@@ -294,6 +294,7 @@ fn main() {
   sys.refresh_all();
   
   tauri::Builder::default()
+    .plugin(tauri_plugin_updater::Builder::new().build())
     .setup(|app| {
         #[cfg(target_os = "windows")]
         {

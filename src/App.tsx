@@ -13,6 +13,7 @@ import { listen } from "@tauri-apps/api/event";
 import { logEvent } from "firebase/analytics";
 import { analytics } from "./firebase";
 import { Download } from "lucide-react";
+import { check } from "@tauri-apps/plugin-updater";
 
 interface Session {
   id: string;
@@ -53,7 +54,7 @@ export default function App() {
 
   const activeSession = sessions.find(s => s.id === activeSessionId);
 
-  // Log app_open when the app starts
+  // Log app_open when the app starts and check for updates
   useEffect(() => {
     try {
       if (analytics) {
@@ -62,6 +63,20 @@ export default function App() {
     } catch (e) {
       console.warn("Analytics not configured yet");
     }
+
+    const checkForUpdates = async () => {
+      try {
+        const update = await check();
+        if (update && update.available) {
+          console.log(`Update available: ${update.version}`);
+          // Automatically download and install the update in the background
+          await update.downloadAndInstall();
+        }
+      } catch (error) {
+        console.error("Failed to check for updates:", error);
+      }
+    };
+    checkForUpdates();
   }, []);
 
   // Sync sessions to localStorage if restore tabs is enabled

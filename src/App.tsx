@@ -12,8 +12,9 @@ import { Downloads } from "./components/Downloads";
 import { listen } from "@tauri-apps/api/event";
 import { logEvent } from "firebase/analytics";
 import { analytics } from "./firebase";
-import { Download } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 
 interface Session {
   id: string;
@@ -51,6 +52,8 @@ export default function App() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [toastMessage, setToastMessage] = useState<{title: string, desc: string} | null>(null);
   const [progressStates, setProgressStates] = useState<Record<string, number>>({});
+  const [pendingUpdate, setPendingUpdate] = useState<any | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const activeSession = sessions.find(s => s.id === activeSessionId);
 
@@ -69,8 +72,14 @@ export default function App() {
         const update = await check();
         if (update && update.available) {
           console.log(`Update available: ${update.version}`);
-          // Automatically download and install the update in the background
-          await update.downloadAndInstall();
+          const isAutoUpdate = localStorage.getItem('rcbrowsing_autoupdate') === 'true';
+          if (isAutoUpdate) {
+            console.log("Auto-update is enabled. Silently downloading and installing...");
+            await update.downloadAndInstall();
+            await relaunch();
+          } else {
+            setPendingUpdate(update);
+          }
         }
       } catch (error) {
         console.error("Failed to check for updates:", error);
@@ -78,6 +87,22 @@ export default function App() {
     };
     checkForUpdates();
   }, []);
+
+  const handleUpdateNow = async () => {
+    if (!pendingUpdate || isUpdating) return;
+    setIsUpdating(true);
+    try {
+      await pendingUpdate.downloadAndInstall();
+      await relaunch();
+    } catch (e) {
+      console.error("Failed to download and install update:", e);
+      setIsUpdating(false);
+    }
+  };
+
+  const handleIgnoreUpdate = () => {
+    setPendingUpdate(null);
+  };
 
   // Sync sessions to localStorage if restore tabs is enabled
   useEffect(() => {
@@ -457,6 +482,56 @@ export default function App() {
             <div>
               <div className="text-sm font-semibold text-neutral-900 dark:text-white">{toastMessage.title}</div>
               <div className="text-xs text-neutral-500 max-w-[200px] truncate">{toastMessage.desc}</div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Update Popup Notification */}
+      <AnimatePresence>
+        {pendingUpdate && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="absolute bottom-5 right-5 z-[1000] w-[420px] bg-neutral-900 border border-neutral-800 shadow-2xl rounded-2xl p-5 flex flex-col gap-4 text-white backdrop-blur-md bg-opacity-95"
+          >
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-accent/15 text-accent rounded-xl border border-accent/25">
+                <RefreshCw size={20} className={isUpdating ? "animate-spin" : ""} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold tracking-tight text-neutral-100">
+                  Update Available
+                </h3>
+                <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
+                  A new version <span className="font-semibold text-neutral-200">v{pendingUpdate.version}</span> is ready to install. Update now to get the latest features and security patches.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-neutral-800">
+              <button 
+                onClick={handleIgnoreUpdate}
+                disabled={isUpdating}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-medium text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Ignore
+              </button>
+              <button 
+                onClick={handleUpdateNow}
+                disabled={isUpdating}
+                className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-medium bg-accent hover:bg-accent/90 text-white shadow-lg shadow-accent/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUpdating ? (
+                  <>
+                    <RefreshCw size={12} className="animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  "Update Now"
+                )}
+              </button>
             </div>
           </motion.div>
         )}

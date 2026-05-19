@@ -2,17 +2,29 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default permissions for the browser",
-  "windows": ["*"],
-  "webviews": ["*"],
+  "windows": [
+    "*"
+  ],
+  "webviews": [
+    "*"
+  ],
   "permissions": [
     "core:default",
     {
       "identifier": "core:webview:allow-create-webview",
       "allow": [
-        { "url": "https://*/*" },
-        { "url": "http://*/*" },
-        { "url": "https://**" },
-        { "url": "http://**" }
+        {
+          "url": "https://*/*"
+        },
+        {
+          "url": "http://*/*"
+        },
+        {
+          "url": "https://**"
+        },
+        {
+          "url": "http://**"
+        }
       ]
     },
     "core:webview:allow-webview-show",
@@ -29,6 +41,7 @@
     "core:window:allow-unmaximize",
     "core:window:allow-close",
     "core:window:allow-start-dragging",
-    "updater:default"
+    "updater:default",
+    "process:default"
   ]
 }

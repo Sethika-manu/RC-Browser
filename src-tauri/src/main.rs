@@ -1,11 +1,11 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{LogicalPosition, LogicalSize, Runtime, Manager};
-use tauri::webview::WebviewBuilder;
-use sysinfo::System;
-use std::sync::Mutex;
 use serde::Serialize;
+use std::sync::Mutex;
+use sysinfo::System;
+use tauri::webview::{DownloadEvent, PageLoadEvent, WebviewBuilder};
+use tauri::{Emitter, LogicalPosition, LogicalSize, Manager, Runtime};
 
 struct SystemState(Mutex<System>);
 
@@ -32,25 +32,145 @@ async fn open_webview<R: Runtime>(
     }
 
     let url_parsed = tauri::Url::parse(&url).map_err(|e| format!("Invalid URL: {}", e))?;
-    
+
+    let mut app_cache_dir = window
+        .app_handle()
+        .path()
+        .app_cache_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("cache"));
+    app_cache_dir.push("webview_data");
+
+    let init_script = format!(
+        r#"
+        window.addEventListener('keydown', (e) => {{
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {{
+                e.preventDefault();
+                if (window.__TAURI_INTERNALS__) {{
+                    window.__TAURI_INTERNALS__.invoke('emit_shortcut_event', {{ key: 'k' }});
+                }} else if (window.__TAURI__) {{
+                    window.__TAURI__.event.emit('shortcut-event', {{ key: 'k' }});
+                }}
+            }}
+        }});
+        
+        function notifyNav() {{
+            if (window.__TAURI_INTERNALS__) {{
+                window.__TAURI_INTERNALS__.invoke('emit_spa_nav', {{ label: '{}' }});
+            }}
+        }}
+
+        // Observe Title Changes (SPA navigations like Google Search tabs)
+        let lastTitle = document.title;
+        const observer = new MutationObserver(() => {{
+            if (document.title !== lastTitle) {{
+                lastTitle = document.title;
+                notifyNav();
+            }}
+        }});
+
+        const startObserver = () => {{
+            const titleEl = document.querySelector('title');
+            if (titleEl) {{
+                observer.observe(titleEl, {{ subtree: true, characterData: true, childList: true }});
+                // Also observe head in case title is completely replaced
+                observer.observe(document.head, {{ childList: true }});
+            }} else {{
+                setTimeout(startObserver, 500);
+            }}
+        }};
+        
+        document.addEventListener('DOMContentLoaded', startObserver);
+        startObserver();
+    "#,
+        label
+    );
+
     let builder = WebviewBuilder::new(&label, tauri::WebviewUrl::External(url_parsed.clone()))
+        .data_directory(app_cache_dir)
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .devtools(true)
         .accept_first_mouse(true)
-        .initialization_script(r#"
-            window.addEventListener('keydown', (e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-                    e.preventDefault();
-                    window.__TAURI__.event.emit('shortcut-event', { key: 'k' });
-                }
-            });
-        "#);
+        .initialization_script(&init_script);
 
-    window.add_child(
-        builder,
-        LogicalPosition::new(x, y),
-        LogicalSize::new(width, height),
-    ).map_err(|e| e.to_string())?;
+    let window_clone = window.clone();
+    let builder = builder.on_download(move |_webview, event| {
+        match event {
+            DownloadEvent::Requested {
+                url,
+                destination: _,
+            } => {
+                #[derive(serde::Serialize, Clone)]
+                struct Payload {
+                    url: String,
+                    state: String,
+                    path: String,
+                }
+                let _ = window_clone.emit(
+                    "download-event",
+                    Payload {
+                        url: url.to_string(),
+                        state: "started".into(),
+                        path: "".into(),
+                    },
+                );
+                true // accept the download
+            }
+            DownloadEvent::Finished { url, path, success } => {
+                #[derive(serde::Serialize, Clone)]
+                struct Payload {
+                    url: String,
+                    state: String,
+                    path: String,
+                }
+                let _ = window_clone.emit(
+                    "download-event",
+                    Payload {
+                        url: url.to_string(),
+                        state: if success {
+                            "finished".into()
+                        } else {
+                            "failed".into()
+                        },
+                        path: path.map_or("".to_string(), |p| p.to_string_lossy().into_owned()),
+                    },
+                );
+                true
+            }
+            _ => true,
+        }
+    });
+
+    let window_clone2 = window.clone();
+    let builder = builder.on_page_load(move |webview, payload| {
+        #[derive(serde::Serialize, Clone)]
+        struct LoadPayload {
+            label: String,
+            url: String,
+            state: String,
+        }
+
+        let state = match payload.event() {
+            PageLoadEvent::Started => "started",
+            PageLoadEvent::Finished => "finished",
+        };
+
+        let _ = window_clone2.emit(
+            "page-load-event",
+            LoadPayload {
+                label: webview.label().to_string(),
+                url: payload.url().to_string(),
+                state: state.to_string(),
+            },
+        );
+    });
+
+    window
+        .add_child(
+            builder,
+            LogicalPosition::new(x, y),
+            LogicalSize::new(width, height),
+        )
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -112,8 +232,12 @@ async fn set_webview_bounds<R: tauri::Runtime>(
     height: f64,
 ) -> Result<(), String> {
     if let Some(webview) = window.get_webview(&label) {
-        webview.set_position(LogicalPosition::new(x, y)).map_err(|e| e.to_string())?;
-        webview.set_size(LogicalSize::new(width, height)).map_err(|e| e.to_string())?;
+        webview
+            .set_position(LogicalPosition::new(x, y))
+            .map_err(|e| e.to_string())?;
+        webview
+            .set_size(LogicalSize::new(width, height))
+            .map_err(|e| e.to_string())?;
         Ok(())
     } else {
         Err("Webview not found".to_string())
@@ -121,12 +245,11 @@ async fn set_webview_bounds<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-async fn go_back<R: tauri::Runtime>(
-    window: tauri::Window<R>,
-    label: String,
-) -> Result<(), String> {
+async fn go_back<R: tauri::Runtime>(window: tauri::Window<R>, label: String) -> Result<(), String> {
     if let Some(webview) = window.get_webview(&label) {
-        webview.eval("window.history.back()").map_err(|e| e.to_string())?;
+        webview
+            .eval("window.history.back()")
+            .map_err(|e| e.to_string())?;
         Ok(())
     } else {
         Err("Webview not found".to_string())
@@ -139,7 +262,9 @@ async fn go_forward<R: tauri::Runtime>(
     label: String,
 ) -> Result<(), String> {
     if let Some(webview) = window.get_webview(&label) {
-        webview.eval("window.history.forward()").map_err(|e| e.to_string())?;
+        webview
+            .eval("window.history.forward()")
+            .map_err(|e| e.to_string())?;
         Ok(())
     } else {
         Err("Webview not found".to_string())
@@ -147,17 +272,69 @@ async fn go_forward<R: tauri::Runtime>(
 }
 
 #[tauri::command]
+async fn reload_webview<R: tauri::Runtime>(
+    window: tauri::Window<R>,
+    label: String,
+) -> Result<(), String> {
+    if let Some(webview) = window.get_webview(&label) {
+        webview
+            .eval("window.location.reload()")
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    } else {
+        Err("Webview not found".to_string())
+    }
+}
+
+#[tauri::command]
+async fn emit_spa_nav<R: tauri::Runtime>(
+    window: tauri::Window<R>,
+    label: String,
+) -> Result<(), String> {
+    #[derive(serde::Serialize, Clone)]
+    struct Payload {
+        label: String,
+    }
+    let _ = window.emit("spa-navigation", Payload { label });
+    Ok(())
+}
+
+#[tauri::command]
+async fn emit_shortcut_event<R: tauri::Runtime>(
+    window: tauri::Window<R>,
+    key: String,
+) -> Result<(), String> {
+    #[derive(serde::Serialize, Clone)]
+    struct Payload {
+        key: String,
+    }
+    let _ = window.emit("shortcut-event", Payload { key });
+    Ok(())
+}
+
+#[tauri::command]
 async fn get_system_metrics(state: tauri::State<'_, SystemState>) -> Result<Metrics, String> {
     let mut sys = state.0.lock().unwrap();
-    sys.refresh_cpu();
-    sys.refresh_memory();
-    
-    let cpu_usage = sys.global_cpu_info().cpu_usage();
-    let used_memory = sys.used_memory() / 1024 / 1024; // MB
-    
+
+    let pid = sysinfo::get_current_pid().unwrap();
+    sys.refresh_process(pid);
+
+    let mut cpu_usage = 0.0;
+    let mut used_memory = 0;
+
+    if let Some(process) = sys.process(pid) {
+        cpu_usage = process.cpu_usage();
+        used_memory = process.memory() / 1024 / 1024; // MB
+    }
+
     // Simulate ping for now
-    let ping = 24 + (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() % 10);
-    
+    let ping = 24
+        + (std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+            % 10);
+
     Ok(Metrics {
         cpu: cpu_usage,
         ram: used_memory,
@@ -166,31 +343,36 @@ async fn get_system_metrics(state: tauri::State<'_, SystemState>) -> Result<Metr
 }
 
 fn main() {
-  let mut sys = System::new_all();
-  sys.refresh_all();
-  
-  tauri::Builder::default()
-    .setup(|app| {
-        #[cfg(target_os = "windows")]
-        {
-            let main_window = app.get_webview_window("main").unwrap();
-            if let Some(icon) = app.default_window_icon() {
-                main_window.set_icon(icon.clone()).unwrap();
+    let mut sys = System::new_all();
+    sys.refresh_all();
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            #[cfg(target_os = "windows")]
+            {
+                let main_window = app.get_webview_window("main").unwrap();
+                if let Some(icon) = app.default_window_icon() {
+                    main_window.set_icon(icon.clone()).unwrap();
+                }
             }
-        }
-        Ok(())
-    })
-    .manage(SystemState(Mutex::new(sys)))
-    .invoke_handler(tauri::generate_handler![
-        open_webview, 
-        navigate_webview, 
-        close_webview,
-        set_webview_visibility,
-        set_webview_bounds,
-        go_back,
-        go_forward,
-        get_system_metrics
-    ])
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+            Ok(())
+        })
+        .manage(SystemState(Mutex::new(sys)))
+        .invoke_handler(tauri::generate_handler![
+            open_webview,
+            navigate_webview,
+            close_webview,
+            set_webview_visibility,
+            set_webview_bounds,
+            go_back,
+            go_forward,
+            reload_webview,
+            emit_spa_nav,
+            emit_shortcut_event,
+            get_system_metrics
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }

@@ -1,10 +1,10 @@
 {
-  "version": "1.1.2",
+  "version": "1.1.3",
   "notes": "Bug fixes, super fast loading bars, and sidebar adjustments!",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRblg1c2pQL3FCWGo2TExKTjQrV0F0MllONitjczJXY2ZTeHQwNXhWYm9aaFdyc1hmUDBYdDdVd1JMa1BGeTk4WXNwU3hLRi9ta1VadkxLWDJTMzhnOGo5SElhZEJOOVFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5MTc1NDgzCWZpbGU6UkNCcm93c2luZ18xLjEuMl94NjQtc2V0dXAuZXhlClBZTHgybGtlbVYxb2llcm5mT0FxV3VUSlU0ZitPRFlyWnpnMTZvYlVIbXVCV2p4U3BzbmtONnZYc1greXlsR0NqRkg0VEdDREZTc1o5ejg1ZDBBMEJ3PT0K",
-      "url": "https://github.com/Sethika-manu/dev-web/releases/download/v1.1.2/RCBrowsing_1.1.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRblg1c2pQL3FCWG02bzFicmh2bVd1OGJZYkxrYVdFWkdtWWdJdjJBbXc1SXBURFhuVDRJVHVyb1IrT3VvUCtCNGtJZEhkbUVyajZvenZhaTdaOE1Celpwa3ZGTHV1WGdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5MTc2Mzk0CWZpbGU6UkNCcm93c2luZ18xLjEuM194NjQtc2V0dXAuZXhlCnJGQk5sR1E1YkhwOVdtWXBFWjc1N2t4dkxtbnFXS0dEUlNhUmEraHNtMkVxSW1pQVBpMFdyTDdtR2JUMWhENXhIZmwwZ0o1YVIwVmRDbWpxZEdZcUNRPT0K",
+      "url": "https://github.com/Sethika-manu/dev-web/releases/download/v1.1.3/RCBrowsing_1.1.3_x64-setup.exe"
     }
   }
 }

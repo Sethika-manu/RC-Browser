@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight } from "lucide-react";
+import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 
 const appWindow = getCurrentWindow();
 
@@ -14,6 +15,13 @@ interface TitleBarProps {
 
 export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessionId }: TitleBarProps) => {
   const [isMaximized, setIsMaximized] = useState(false);
+  const [appVersion, setAppVersion] = useState("0.1.0");
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch((err) => {
+      console.error("Failed to get app version:", err);
+    });
+  }, []);
 
   useEffect(() => {
     const updateIsMaximized = async () => {
@@ -66,6 +74,12 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
     }
   };
 
+  const handleReload = () => {
+    if (activeSessionId) {
+      invoke("reload_webview", { label: activeSessionId }).catch(() => {});
+    }
+  };
+
   const handleMouseDownDrag = (e: React.MouseEvent) => {
     if (e.button === 0) {
       const target = e.target as HTMLElement;
@@ -84,7 +98,7 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
       <div data-tauri-drag-region className="flex items-center gap-3 w-1/4 h-full pointer-events-none">
         <div className="w-2.5 h-2.5 bg-accent rounded-full shadow-[0_0_10px_rgba(var(--accent-rgb),0.5)]" />
         <span className="text-[10px] font-bold font-mono tracking-[0.2em] text-neutral-500">
-          RCBROWSING <span className="text-neutral-700 font-normal">v0.1.0</span>
+          RCBROWSING <span className="text-neutral-700 font-normal">v{appVersion}</span>
         </span>
       </div>
 
@@ -106,6 +120,14 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
               title="Go Forward"
             >
               <ArrowRight size={16} />
+            </button>
+            <button
+              onClick={handleReload}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="p-1.5 hover:bg-white/5 text-neutral-500 hover:text-white transition-colors rounded-md ml-0.5"
+              title="Reload"
+            >
+              <RotateCw size={14} />
             </button>
           </div>
         )}

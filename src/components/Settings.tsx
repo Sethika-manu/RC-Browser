@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Monitor, 
   Shield, 
@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Settings as SettingsIcon,
   ToggleLeft as Toggle,
-  Check
+  Check,
+  RefreshCw
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useSettings } from "./SettingsContext";
@@ -36,6 +37,8 @@ const TRANSLATIONS: Record<Language, any> = {
     shortcuts_desc: 'Configure keyboard shortcuts',
     sidebar: 'Sidebar',
     sidebar_desc: 'Auto-hide sidebar when not in use',
+    auto_update: 'Enable Auto-Updates',
+    auto_update_desc: 'Automatically download and install new updates in the background.',
   },
   'Sinhala (LK)': {
     title: 'සැකසුම්',
@@ -54,6 +57,8 @@ const TRANSLATIONS: Record<Language, any> = {
     shortcuts_desc: 'යතුරුපුවරු කෙටිමං සකසන්න',
     sidebar: 'පැති තීරුව',
     sidebar_desc: 'පැති තීරුව ස්වයංක්‍රීයව සඟවන්න',
+    auto_update: 'ස්වයංක්‍රීය යාවත්කාලීන සක්‍රීය කරන්න',
+    auto_update_desc: 'පසුබිමින් නව යාවත්කාලීන ස්වයංක්‍රීයව බාගත කර ස්ථාපනය කරන්න.',
   },
   'Singlish': {
     title: 'Settings kalla',
@@ -72,6 +77,8 @@ const TRANSLATIONS: Record<Language, any> = {
     shortcuts_desc: 'Keys hadaganna',
     sidebar: 'Sidebar eka',
     sidebar_desc: 'Sidebar eka hanganna',
+    auto_update: 'Auto-Updates on කරන්න',
+    auto_update_desc: 'පසුබිමෙන් auto ම download කරලා update install කරන්න.',
   }
 };
 
@@ -115,6 +122,31 @@ export const Settings = () => {
 
 
 
+  const [restoreTabs, setRestoreTabs] = useState(() => {
+    return localStorage.getItem('rc_restore_tabs') === 'true';
+  });
+
+  const toggleRestoreTabs = () => {
+    const newVal = !restoreTabs;
+    setRestoreTabs(newVal);
+    localStorage.setItem('rc_restore_tabs', String(newVal));
+  };
+
+  const [autoUpdate, setAutoUpdate] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('rcbrowsing_autoupdate');
+    if (stored !== null) {
+      setAutoUpdate(stored === 'true');
+    }
+  }, []);
+
+  const handleAutoUpdateChange = () => {
+    const newVal = !autoUpdate;
+    setAutoUpdate(newVal);
+    localStorage.setItem('rcbrowsing_autoupdate', String(newVal));
+  };
+
   const sections: SettingSection[] = [
     {
       title: "General",
@@ -139,6 +171,22 @@ export const Settings = () => {
           description: t.language_desc, 
           value: language,
           onClick: cycleLanguage
+        },
+        {
+          icon: <Info size={18} />,
+          label: "Restore previous tabs",
+          description: "Re-open tabs from your last session",
+          toggle: true,
+          checked: restoreTabs,
+          onClick: toggleRestoreTabs
+        },
+        {
+          icon: <RefreshCw size={18} />,
+          label: t.auto_update,
+          description: t.auto_update_desc,
+          toggle: true,
+          checked: autoUpdate,
+          onClick: handleAutoUpdateChange
         }
       ]
     },
@@ -233,8 +281,8 @@ export const Settings = () => {
                         </span>
                       )}
                       {item.toggle ? (
-                        <div className={`w-9 h-5 rounded-full relative transition-colors ${item.checked ? 'bg-accent' : 'bg-neutral-300 dark:bg-neutral-800'}`}>
-                          <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${item.checked ? 'right-1' : 'left-1'}`} />
+                        <div className={`w-9 h-5 rounded-full relative transition-colors duration-200 ${item.checked ? 'bg-accent' : 'bg-neutral-300 dark:bg-neutral-800'}`}>
+                          <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform duration-200 ${item.checked ? 'translate-x-4' : 'translate-x-0'}`} />
                         </div>
                       ) : !item.readOnly && (
                         <ChevronRight size={16} className="text-neutral-400 dark:text-neutral-700" />

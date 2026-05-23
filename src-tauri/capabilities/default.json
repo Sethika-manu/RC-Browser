@@ -10,6 +10,8 @@
   ],
   "permissions": [
     "core:default",
+    "dialog:default",
+    
     {
       "identifier": "core:webview:allow-create-webview",
       "allow": [

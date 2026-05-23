@@ -3,14 +3,12 @@ import {
   Monitor, 
   Shield, 
   Cpu, 
-  User, 
   Palette, 
   Globe, 
   Keyboard, 
   Info,
   ChevronRight,
   Settings as SettingsIcon,
-  ToggleLeft as Toggle,
   Check,
   RefreshCw
 } from "lucide-react";
@@ -103,7 +101,8 @@ export const Settings = () => {
   const { 
     theme, setTheme, 
     language, setLanguage, 
-    privacyShield, setPrivacyShield 
+    privacyShield, setPrivacyShield,
+    autoHideSidebar, setAutoHideSidebar // Extracted from context
   } = useSettings();
 
   const t = TRANSLATIONS[language];
@@ -119,8 +118,6 @@ export const Settings = () => {
     const nextIndex = (langs.indexOf(language) + 1) % langs.length;
     setLanguage(langs[nextIndex]);
   };
-
-
 
   const [restoreTabs, setRestoreTabs] = useState(() => {
     return localStorage.getItem('rc_restore_tabs') === 'true';
@@ -222,7 +219,8 @@ export const Settings = () => {
           label: t.sidebar, 
           description: t.sidebar_desc, 
           toggle: true, 
-          checked: false, 
+          checked: autoHideSidebar, // Connected
+          onClick: () => setAutoHideSidebar(!autoHideSidebar) // Toggle action
         }
       ]
     }

@@ -10,6 +10,8 @@ interface SettingsContextType {
   setLanguage: (lang: Language) => void;
   privacyShield: boolean;
   setPrivacyShield: (enabled: boolean) => void;
+  autoHideSidebar: boolean;
+  setAutoHideSidebar: (enabled: boolean) => void;
   t: (key: string) => string;
 }
 
@@ -103,6 +105,10 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const [privacyShield, setPrivacyShield] = useState<boolean>(() => 
     localStorage.getItem('app-privacy-shield') !== 'false'
   );
+  // NEW: Auto Hide Sidebar State
+  const [autoHideSidebar, setAutoHideSidebar] = useState<boolean>(() => 
+    localStorage.getItem('app-auto-hide-sidebar') === 'true'
+  );
 
   useEffect(() => {
     const root = document.documentElement;
@@ -131,6 +137,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('app-privacy-shield', String(privacyShield));
   }, [privacyShield]);
 
+  // Save autoHideSidebar to localStorage
+  useEffect(() => {
+    localStorage.setItem('app-auto-hide-sidebar', String(autoHideSidebar));
+  }, [autoHideSidebar]);
+
   const t = (key: string) => {
     return translations[language][key] || key;
   };
@@ -140,6 +151,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       theme, setTheme, 
       language, setLanguage, 
       privacyShield, setPrivacyShield,
+      autoHideSidebar, setAutoHideSidebar,
       t 
     }}>
       {children}

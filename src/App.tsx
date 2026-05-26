@@ -27,6 +27,7 @@ import { analytics } from "./firebase";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { ask } from "@tauri-apps/plugin-dialog";
+import { getVersion } from "@tauri-apps/api/app";
 
 interface Session {
   id: string;
@@ -139,32 +140,69 @@ export default function App() {
 
     const checkForUpdates = async () => {
       try {
-        const update = await check();
-        if (update && update.available) {
-          const isAutoUpdate = localStorage.getItem('rcbrowsing_autoupdate') === 'true';
-          if (isAutoUpdate) {
-            await update.downloadAndInstall();
-            await relaunch();
-          } else {
-            const wantsUpdate = await ask(
-              `A new version v${update.version} is ready to install.\n\nUpdate now to get the latest features and security patches.`,
-              {
-                title: 'Update Available',
-                kind: 'info',
-                okLabel: 'Update Now',
-                cancelLabel: 'Ignore'
-              }
-            );
+        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        if (isMobileDevice) {
+          // --- MOBILE CUSTOM UPDATER ---
+          const currentVer = await getVersion();
+          
+          // ඔයාගේ GitHub Raw Link එක මෙතන තියෙනවා
+          const response = await fetch("https://raw.githubusercontent.com/Sethika-manu/dev-web/refs/heads/main/update.json");
+          const updateData = await response.json();
+          
+          if (updateData.version !== currentVer) {
+            const apkUrl = updateData.platforms?.android?.url;
+            
+            if (apkUrl) {
+              const wantsUpdate = await ask(
+                `A new mobile version v${updateData.version} is ready to install.\n\nUpdate now to get the latest features and security patches.`,
+                {
+                  title: 'Update Available',
+                  kind: 'info',
+                  okLabel: 'Update Now',
+                  cancelLabel: 'Ignore'
+                }
+              );
 
-            if (wantsUpdate) {
-              setIsUpdating(true);
-              setToastMessage({ title: 'Updating...', desc: 'Downloading and installing the update.' });
-              try {
-                await update.downloadAndInstall();
-                await relaunch();
-              } catch (e) {
-                console.error("Failed to download update:", e);
-                setIsUpdating(false);
+              if (wantsUpdate) {
+                setToastMessage({ title: 'Downloading Update...', desc: 'Please check your notification panel.' });
+                
+                const win = window as any;
+                if (win.NativeBridge || win.AndroidBridge) {
+                  (win.NativeBridge || win.AndroidBridge).updateApp(apkUrl);
+                }
+              }
+            }
+          }
+        } else {
+          // --- PC UPDATER ---
+          const update = await check();
+          if (update && update.available) {
+            const isAutoUpdate = localStorage.getItem('rcbrowsing_autoupdate') === 'true';
+            if (isAutoUpdate) {
+              await update.downloadAndInstall();
+              await relaunch();
+            } else {
+              const wantsUpdate = await ask(
+                `A new version v${update.version} is ready to install.\n\nUpdate now to get the latest features and security patches.`,
+                {
+                  title: 'Update Available',
+                  kind: 'info',
+                  okLabel: 'Update Now',
+                  cancelLabel: 'Ignore'
+                }
+              );
+
+              if (wantsUpdate) {
+                setIsUpdating(true);
+                setToastMessage({ title: 'Updating...', desc: 'Downloading and installing the update.' });
+                try {
+                  await update.downloadAndInstall();
+                  await relaunch();
+                } catch (e) {
+                  console.error("Failed to download update:", e);
+                  setIsUpdating(false);
+                }
               }
             }
           }
@@ -173,6 +211,7 @@ export default function App() {
         console.error("Failed to check for updates:", error);
       }
     };
+    
     checkForUpdates();
   }, []);
 
@@ -350,7 +389,6 @@ export default function App() {
               if (appView === 'console') return <div className="absolute inset-0 z-20 bg-white dark:bg-[#0a0a0a] pointer-events-auto"><Console /></div>;
               if (appView === 'downloads') return <div className="absolute inset-0 z-20 bg-white dark:bg-[#0a0a0a] pointer-events-auto"><Downloads /></div>;
               if (appView === 'browser') {
-                // මෙතන තමයි fix එක තියෙන්නේ: about:blank ආවත් Home Screen එක පේනවා
                 const isHomeVisible = !activeSessionId || (activeSession && (activeSession.url === "" || activeSession.url === "about:blank"));
                 if (isHomeVisible) return <div className="absolute inset-0 z-20 bg-white dark:bg-[#0a0a0a] pointer-events-auto"><Home onNavigate={handleNavigate} /></div>;
               }

@@ -1,5 +1,7 @@
 package com.royalcodex.browser.v1
 
+import android.content.Intent
+import android.net.Uri
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.os.Handler

@@ -7,6 +7,7 @@
       "url": "https://github.com/Sethika-manu/dev-web/releases/download/v1.2.1/RCBrowser_1.2.1_x64-setup.exe"
     },
     "android": {
+      "signature": "",
       "url": "https://github.com/Sethika-manu/dev-web/releases/download/v1.2.1/RCBrowserv1.2.1.apk"
     }
   }

@@ -431,6 +431,65 @@ export default function App() {
           activeSessionId={activeSessionId}
         />
 
+        <AnimatePresence>
+          {toastMessage && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="w-full bg-[#16161a] border-t border-white/10 text-neutral-200 overflow-hidden flex-shrink-0 flex items-center justify-between px-3 md:px-4 py-2 pointer-events-auto"
+            >
+              <div className="flex items-center gap-2 md:gap-3 overflow-hidden w-full mr-2">
+                {(() => {
+                  const title = toastMessage.title.toLowerCase();
+                  if (title.includes('success')) {
+                    return (
+                      <div className="bg-emerald-500/10 text-emerald-400 p-1 md:p-1.5 rounded-lg flex-shrink-0 flex items-center justify-center border border-emerald-500/20">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                      </div>
+                    );
+                  }
+                  if (title.includes('fail') || title.includes('error')) {
+                    return (
+                      <div className="bg-rose-500/10 text-rose-400 p-1 md:p-1.5 rounded-lg flex-shrink-0 flex items-center justify-center border border-rose-500/20">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                      </div>
+                    );
+                  }
+                  if (title.includes('copy')) {
+                    return (
+                      <div className="bg-amber-500/10 text-amber-400 p-1 md:p-1.5 rounded-lg flex-shrink-0 flex items-center justify-center border border-amber-500/20">
+                        <Copy size={14} />
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="bg-blue-500/10 text-blue-400 p-1 md:p-1.5 rounded-lg flex-shrink-0 flex items-center justify-center border border-blue-500/20">
+                      <Download size={14} className="animate-bounce" />
+                    </div>
+                  );
+                })()}
+                <div className="flex flex-col md:flex-row md:items-baseline gap-0.5 md:gap-2 overflow-hidden text-[11px] md:text-sm">
+                  <span className="font-bold text-neutral-100 tracking-wide flex-shrink-0">{toastMessage.title}</span>
+                  <span className="text-neutral-400 truncate font-medium text-[10px] md:text-xs">{toastMessage.desc}</span>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setToastMessage(null)}
+                className="p-1 rounded-lg text-neutral-400 hover:text-neutral-100 hover:bg-white/5 transition-colors flex-shrink-0 cursor-pointer pointer-events-auto"
+                aria-label="Close notification"
+              >
+                <svg className="w-3.5 h-3.5 md:w-4 md:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-transparent overflow-hidden z-50">
           <AnimatePresence>
             {(activeSessionId && (progressStates[activeSessionId] || 0) > 0) && (
@@ -518,25 +577,7 @@ export default function App() {
         </main>
       </div>
 
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div 
-            initial={{ y: 80, opacity: 0, translateX: "-50%" }} 
-            animate={{ y: 0, opacity: 1, translateX: "-50%" }} 
-            exit={{ y: 80, opacity: 0, translateX: "-50%" }} 
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed bottom-[90px] md:bottom-6 left-1/2 w-[90%] max-w-[320px] bg-[#2563eb] text-white py-3 px-4 rounded-xl shadow-2xl z-[9999999] flex items-center gap-3 border border-white/20 pointer-events-none"
-          >
-            <div className="bg-white/20 p-1.5 rounded-full flex-shrink-0">
-              <Download size={16} className="animate-bounce" />
-            </div>
-            <div className="flex flex-col overflow-hidden">
-              <span className="font-bold text-[13px] drop-shadow-md truncate">{toastMessage.title}</span>
-              <span className="text-[11px] text-white/90 truncate">{toastMessage.desc}</span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
 
       <AnimatePresence>
         {contextMenuData && (

@@ -184,6 +184,7 @@ async fn open_webview(
             (function() {{
                 window.__privacyShieldOn = {};
                 const initialCosmeticCss = {};
+                window.__webviewLabel = "{}";
                 
                 const adPatterns = [
                     "doubleclick", "googlesyndication", "googletagmanager", "googletagservices",
@@ -373,11 +374,26 @@ async fn open_webview(
                     }}
                 }};
 
+                // --- Passive URL & Title listener ---
+                const reportNav = async () => {{
+                    try {{
+                        const invokeFn = window.__TAURI__?.core?.invoke || window.__TAURI_INTERNALS__?.invoke;
+                        if (invokeFn) {{
+                            await invokeFn("report_webview_navigation", {{
+                                label: window.__webviewLabel || "",
+                                url: window.location.href,
+                                title: document.title || window.location.hostname
+                            }});
+                        }}
+                    }} catch(e) {{}}
+                }};
+
                 // --- 3. MutationObserver and DOM Event Hooks ---
                 const startContinuousEnforcement = () => {{
                     setupInterceptors();
                     applyAllCosmeticHiding();
                     injectDynamicCosmeticRules();
+                    reportNav();
 
                     const observer = new MutationObserver((mutations) => {{
                         setupInterceptors();
@@ -411,6 +427,7 @@ async fn open_webview(
                 // Run immediately (synchronous / early launch)
                 setupInterceptors();
                 applyAllCosmeticHiding();
+                reportNav();
 
                 // Hook to DOMContentLoaded to bind the MutationObserver
                 if (document.readyState === "loading") {{
@@ -425,13 +442,18 @@ async fn open_webview(
                     history.pushState = function() {{
                         originalPushState.apply(this, arguments);
                         setTimeout(injectDynamicCosmeticRules, 50);
+                        setTimeout(reportNav, 50);
                     }};
                     const originalReplaceState = history.replaceState;
                     history.replaceState = function() {{
                         originalReplaceState.apply(this, arguments);
                         setTimeout(injectDynamicCosmeticRules, 50);
+                        setTimeout(reportNav, 50);
                     }};
-                    window.addEventListener('popstate', () => setTimeout(injectDynamicCosmeticRules, 50));
+                    window.addEventListener('popstate', () => {{
+                        setTimeout(injectDynamicCosmeticRules, 50);
+                        setTimeout(reportNav, 50);
+                    }});
                 }};
                 try {{
                     patchHistory();
@@ -440,7 +462,8 @@ async fn open_webview(
             }})();
             "#,
             privacy_shield_on,
-            serde_json::to_string(&initial_cosmetic_css).unwrap_or_else(|_| "\"\"".to_string())
+            serde_json::to_string(&initial_cosmetic_css).unwrap_or_else(|_| "\"\"".to_string()),
+            label
         ));
 
         // 🚨 100% RELIABLE DOUBLE-TAP HACK 🚨
@@ -617,6 +640,24 @@ async fn open_webview(
         let _ = theme;
     }
 
+    Ok(())
+}
+
+#[tauri::command]
+async fn report_webview_navigation(
+    app: AppHandle,
+    label: String,
+    url: String,
+    title: String,
+) -> Result<(), String> {
+    let _ = app.emit(
+        "webview-url-changed",
+        serde_json::json!({
+            "label": label,
+            "url": url,
+            "title": title
+        }),
+    );
     Ok(())
 }
 
@@ -864,7 +905,8 @@ pub fn run() {
             resize_browser_webview,
             trigger_download,
             set_privacy_shield,
-            get_cosmetic_rules
+            get_cosmetic_rules,
+            report_webview_navigation
         ])
         .setup(|app| {
             use tauri::Listener;

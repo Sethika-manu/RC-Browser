@@ -11,7 +11,8 @@ import {
   Plus,
   Search,
   X,
-  Download
+  Download,
+  History as HistoryIcon
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -26,7 +27,7 @@ interface Session {
 interface SidebarProps {
   sessions: Session[];
   activeSessionId: string | null;
-  activeView: 'browser' | 'settings' | 'downloads' | 'tabs';
+  activeView: 'browser' | 'settings' | 'downloads' | 'tabs' | 'history';
   onSessionSelect: (id: string) => void;
   onSessionClose: (id: string) => void;
   onNewSession: () => void;
@@ -34,6 +35,7 @@ interface SidebarProps {
   onSearchClick: () => void;
   onSettingsClick: () => void;
   onDownloadsClick: () => void;
+  onHistoryClick: () => void;
   isDownloading: boolean;
 }
 
@@ -48,6 +50,7 @@ export const Sidebar = ({
   onSearchClick,
   onSettingsClick,
   onDownloadsClick,
+  onHistoryClick,
   isDownloading
 }: SidebarProps) => {
   const { t, autoHideSidebar } = useSettings(); // Extract autoHideSidebar
@@ -172,6 +175,18 @@ export const Sidebar = ({
             {!isCollapsed && <span className="text-xs font-medium">Downloads</span>}
           </button>
 
+          <button 
+            onClick={onHistoryClick}
+            className={cn(
+              "w-full flex items-center gap-3 p-2.5 rounded-lg transition-all whitespace-nowrap",
+              activeView === 'history'
+                ? "bg-neutral-100 dark:bg-white/5 text-neutral-900 dark:text-white shadow-sm"
+                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.02]"
+            )}
+          >
+            <div className="flex-shrink-0"><HistoryIcon size={16} /></div>
+            {!isCollapsed && <span className="text-xs font-medium">{t('nav_history')}</span>}
+          </button>
 
           <button 
             onClick={onSettingsClick}

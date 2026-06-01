@@ -158,6 +158,22 @@ export const Settings = () => {
     localStorage.setItem('rcbrowser_autoupdate', String(newVal));
   };
 
+  const handleClearBrowsingData = async () => {
+    const confirmClear = window.confirm("Are you sure you want to clear all browsing data? This will delete your browsing history, top sites, and search suggestions.");
+    if (confirmClear) {
+      try {
+        const { clearAllHistory } = await import("../lib/historyDb");
+        await clearAllHistory();
+        localStorage.removeItem('siteHistory');
+        localStorage.removeItem('app_browser_history');
+        window.dispatchEvent(new Event('browsing-data-cleared'));
+        alert("Browsing data cleared successfully!");
+      } catch (err) {
+        console.error("Failed to clear browsing data:", err);
+      }
+    }
+  };
+
   const sections: SettingSection[] = [
     {
       title: "General",
@@ -216,7 +232,8 @@ export const Settings = () => {
           icon: <Check size={18} />, 
           label: t.clear, 
           description: t.clear_desc, 
-          action: true 
+          action: true,
+          onClick: handleClearBrowsingData
         }
       ]
     },

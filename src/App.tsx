@@ -10,6 +10,7 @@ import { Viewport } from "./components/Viewport";
 import { Home, recordSiteVisit } from "./components/Home"; 
 import { Settings } from "./components/Settings";
 import { Downloads } from "./components/Downloads";
+import { History } from "./components/History";
 
 // Lucide Icons
 import { 
@@ -19,7 +20,8 @@ import {
   Layers,
   Copy,
   ExternalLink,
-  Image as ImageIcon
+  Image as ImageIcon,
+  History as HistoryIcon
 } from "lucide-react";
 
 import { logEvent } from "firebase/analytics";
@@ -31,6 +33,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { open } from "@tauri-apps/plugin-shell"; 
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { logHistoryVisit } from "./lib/historyDb";
 
 interface Session {
   id: string;
@@ -85,7 +88,7 @@ export default function App() {
   
   const [searchValue, setSearchValue] = useState("");
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
-  const [appView, setAppView] = useState<'browser' | 'settings' | 'downloads' | 'tabs'>('browser');
+  const [appView, setAppView] = useState<'browser' | 'settings' | 'downloads' | 'tabs' | 'history'>('browser');
   
   const [toastMessage, setToastMessage] = useState<{title: string, desc: string} | null>(null);
   const [progressStates, setProgressStates] = useState<Record<string, number>>({});
@@ -149,6 +152,23 @@ export default function App() {
       }
     });
 
+    const unlistenUrlPromise = listen('webview-url-changed', (event: any) => {
+      const { label, url, title } = event.payload;
+      
+      const currentActiveId = activeSessionIdRef.current;
+      const currentAppView = appViewRef.current;
+
+      setSessions(prev => prev.map(s => s.id === label ? { ...s, url, title: (url === "about:blank" || url === "") ? "New Tab" : title || url } : s));
+      
+      if (currentActiveId === label && currentAppView === 'browser') {
+        setSearchValue((url === "about:blank" || url === "") ? "" : url);
+      }
+
+      if (url && url !== "" && url !== "about:blank" && url.startsWith('http')) {
+        logHistoryVisit(url, title).catch(err => console.error("History logging error:", err));
+      }
+    });
+
     const handleHistoryUpdate = (e: any) => {
       const fileName = getFileName(e.detail.path, e.detail.url);
       setDownloadHistory(prev => {
@@ -168,6 +188,7 @@ export default function App() {
     return () => {
       window.removeEventListener('rc-native-context-menu', handleNativeContextMenu);
       unlistenPromise.then(unlisten => unlisten());
+      unlistenUrlPromise.then(unlisten => unlisten());
       window.removeEventListener('rc-download-finished', handleHistoryUpdate);
     };
   }, []);
@@ -191,6 +212,7 @@ export default function App() {
           setSearchValue(url === "about:blank" ? "" : url);
           if (url && url !== "" && url !== "about:blank") {
             recordSiteVisit(url);
+            logHistoryVisit(url);
           }
         }
       };
@@ -329,6 +351,10 @@ export default function App() {
         e.preventDefault();
         setIsPaletteOpen((prev) => !prev);
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === "h") {
+        e.preventDefault();
+        setAppView('history');
+      }
       if (e.key === "Escape") setIsPaletteOpen(false);
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -364,6 +390,7 @@ export default function App() {
 
     if (targetUrl && targetUrl !== "" && targetUrl !== "about:blank") {
       recordSiteVisit(targetUrl);
+      logHistoryVisit(targetUrl);
     }
 
     if (isMobile) {
@@ -394,6 +421,7 @@ export default function App() {
 
     if (url && url !== "" && url !== "about:blank") {
       recordSiteVisit(url);
+      logHistoryVisit(url);
     }
 
     if (isMobile && url !== "") {
@@ -430,7 +458,7 @@ export default function App() {
     }
   };
 
-  const handleNavClick = (view: 'settings' | 'downloads' | 'tabs') => {
+  const handleNavClick = (view: 'settings' | 'downloads' | 'tabs' | 'history') => {
     setAppView(view);
     if (isMobile) {
       lastLoadedUrlRef.current = null;
@@ -563,6 +591,7 @@ export default function App() {
             onSearchClick={() => setIsPaletteOpen(true)}
             onSettingsClick={() => handleNavClick('settings')}
             onDownloadsClick={() => handleNavClick('downloads')}
+            onHistoryClick={() => handleNavClick('history')}
             activeView={appView}
             isDownloading={activeDownloads.length > 0} 
           />
@@ -579,6 +608,11 @@ export default function App() {
               if (appView === 'downloads') return (
                 <div className="absolute inset-0 z-20 bg-white dark:bg-[#0a0a0a] pointer-events-auto">
                   <Downloads activeDownloads={activeDownloads} history={downloadHistory} clearHistory={() => { setDownloadHistory([]); localStorage.removeItem('rc_download_history'); }} />
+                </div>
+              );
+              if (appView === 'history') return (
+                <div className="absolute inset-0 z-20 bg-white dark:bg-[#0a0a0a] pointer-events-auto">
+                  <History onNavigate={(url) => { handleNavigate(url); setAppView('browser'); }} />
                 </div>
               );
               if (appView === 'browser') {
@@ -826,6 +860,9 @@ export default function App() {
               {sessions.length > 0 && <span className="absolute -top-1.5 -right-2 bg-accent text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-white dark:border-[#0c0c0c]">{sessions.length}</span>}
             </div>
             <span>Tabs</span>
+          </button>
+          <button onClick={() => handleNavClick('history')} className="flex flex-col items-center justify-center w-full h-full text-xs text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
+            <HistoryIcon size={20} className="mb-1" /><span>History</span>
           </button>
           <button onClick={() => handleNavClick('downloads')} className="flex flex-col items-center justify-center w-full h-full text-xs text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
             <Download size={20} className="mb-1" /><span>Downloads</span>

@@ -156,12 +156,9 @@ export const Home = ({ onNavigate }: HomeProps) => {
               <div 
                 key={site.url}
                 onClick={() => {
-                  const targetUrl = site.url;
-                  const win = window as any;
-                  if (win.NativeBridge || win.AndroidBridge) {
-                    (win.NativeBridge || win.AndroidBridge).loadNativeUrl(targetUrl);
-                  }
-                  onNavigate(targetUrl);
+                  const url = site.url;
+                  const formattedUrl = (url.startsWith('http://') || url.startsWith('https://')) ? url : 'https://' + url;
+                  onNavigate(formattedUrl);
                 }}
                 className="p-4 rounded-xl bg-neutral-100/50 dark:bg-neutral-900/50 border border-neutral-200 dark:border-border text-left hover:border-accent/30 dark:hover:border-accent/30 transition-colors cursor-pointer group shadow-sm dark:shadow-none"
               >

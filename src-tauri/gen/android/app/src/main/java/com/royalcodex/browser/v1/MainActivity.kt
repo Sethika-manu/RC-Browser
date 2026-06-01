@@ -118,7 +118,6 @@ class MainActivity : TauriActivity() {
                     }
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
-                        url?.let { syncUrlToReact(it) }
                         injectPrivacyShieldScripts(view)
                     }
 
@@ -151,21 +150,6 @@ class MainActivity : TauriActivity() {
                                 // Block direct navigation to ad/tracker domains
                                 if (isAdOrTracker(urlString)) {
                                     return true
-                                }
-
-                                val isForMainFrame = request.isForMainFrame
-                                val hasGesture = request.hasGesture()
-
-                                if (isForMainFrame && !hasGesture) {
-                                    val currentUrl = view?.url
-                                    if (currentUrl != null && currentUrl.isNotEmpty() && currentUrl != "about:blank") {
-                                        val currentHost = Uri.parse(currentUrl).host?.lowercase() ?: ""
-                                        val newHost = url.host?.lowercase() ?: ""
-                                        if (currentHost.isNotEmpty() && newHost.isNotEmpty() && currentHost != newHost) {
-                                            // Intercept and block sudden redirects without user gesture
-                                            return true
-                                        }
-                                    }
                                 }
                             }
                         }

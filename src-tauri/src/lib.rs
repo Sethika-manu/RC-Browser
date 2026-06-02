@@ -340,8 +340,21 @@ async fn open_webview(
                             "http"
                         };
                         let proxy_url_str = format!("{}://{}:{}", scheme, config.ip.trim(), config.port.trim());
-                        if let Ok(proxy_url) = tauri::Url::parse(&proxy_url_str) {
-                            webview_builder = webview_builder.proxy_url(proxy_url);
+                        
+                        #[cfg(target_os = "windows")]
+                        {
+                            let args = format!(
+                                "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --proxy-server={}",
+                                proxy_url_str
+                            );
+                            webview_builder = webview_builder.additional_browser_args(&args);
+                        }
+
+                        #[cfg(not(target_os = "windows"))]
+                        {
+                            if let Ok(proxy_url) = tauri::Url::parse(&proxy_url_str) {
+                                webview_builder = webview_builder.proxy_url(proxy_url);
+                            }
                         }
                     }
                 }

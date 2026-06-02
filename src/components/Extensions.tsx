@@ -52,7 +52,11 @@ export const Extensions = () => {
 
   const handleToggle = async (ext: Extension) => {
     try {
-      const updated: Extension = { ...ext, enabled: !ext.enabled };
+      const updated: Extension = { 
+        ...ext, 
+        enabled: !ext.enabled,
+        active: !ext.enabled
+      };
       await saveExtension(updated);
       await syncExtensionsToRust();
       await loadExtensions();
@@ -90,6 +94,7 @@ export const Extensions = () => {
     try {
       const id = editingExtension ? editingExtension.id : `custom-${Math.random().toString(36).substring(2, 11)}`;
       const enabled = editingExtension ? editingExtension.enabled : true;
+      const active = editingExtension ? (editingExtension.active !== undefined ? editingExtension.active : true) : true;
 
       const newExt: Extension = {
         id,
@@ -97,7 +102,8 @@ export const Extensions = () => {
         description: formDesc,
         js: formJs,
         css: formCss,
-        enabled
+        enabled,
+        active
       };
 
       await saveExtension(newExt);

@@ -5,6 +5,7 @@ export interface Extension {
   js: string;
   css: string;
   enabled: boolean;
+  active?: boolean;
 }
 
 const DB_NAME = 'RCBrowserExtensionsDB';
@@ -92,10 +93,27 @@ export async function saveExtension(extension: Extension): Promise<void> {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.put(extension);
+    
+    // Ensure active is set to true by default for new extensions
+    const extensionWithActive = {
+      ...extension,
+      active: extension.active !== undefined ? extension.active : true
+    };
+    
+    store.put(extensionWithActive);
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+    transaction.oncomplete = async () => {
+      try {
+        await syncExtensionsToRust();
+        resolve();
+      } catch (err) {
+        console.warn("Failed to sync extensions on save complete:", err);
+        resolve();
+      }
+    };
+
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(new Error("Transaction aborted"));
   });
 }
 
@@ -104,10 +122,20 @@ export async function deleteExtension(id: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.delete(id);
+    store.delete(id);
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+    transaction.oncomplete = async () => {
+      try {
+        await syncExtensionsToRust();
+        resolve();
+      } catch (err) {
+        console.warn("Failed to sync extensions on delete complete:", err);
+        resolve();
+      }
+    };
+
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(new Error("Transaction aborted"));
   });
 }
 

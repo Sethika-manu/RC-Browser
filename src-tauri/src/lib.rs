@@ -32,6 +32,18 @@ struct Extension {
 
 struct ExtensionsState(std::sync::Mutex<Vec<Extension>>);
 
+#[cfg(not(target_os = "android"))]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+struct ProxyConfig {
+    enabled: bool,
+    proxy_type: String,
+    ip: String,
+    port: String,
+}
+
+#[cfg(not(target_os = "android"))]
+struct ProxyState(std::sync::Mutex<ProxyConfig>);
+
 fn get_ping() -> u64 {
     let start = Instant::now();
     let addr = "1.1.1.1:53".parse::<SocketAddr>().unwrap();
@@ -146,6 +158,113 @@ async fn sync_extensions(
     Ok(())
 }
 
+#[cfg(not(target_os = "android"))]
+fn get_proxy_config_path(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_data_dir().ok().map(|dir| dir.join("proxy_config.json"))
+}
+
+#[cfg(not(target_os = "android"))]
+fn load_saved_proxy_config(app: &AppHandle) -> Option<ProxyConfig> {
+    let path = get_proxy_config_path(app)?;
+    if path.exists() {
+        if let Ok(file_content) = std::fs::read_to_string(path) {
+            if let Ok(config) = serde_json::from_str::<ProxyConfig>(&file_content) {
+                return Some(config);
+            }
+        }
+    }
+    None
+}
+
+#[cfg(not(target_os = "android"))]
+fn save_proxy_config(app: &AppHandle, config: &ProxyConfig) -> Result<(), String> {
+    let path = get_proxy_config_path(app).ok_or("Failed to resolve app data dir")?;
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let serialized = serde_json::to_string(config).map_err(|e| e.to_string())?;
+    std::fs::write(path, serialized).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "android"))]
+fn test_proxy_connection(ip: &str, port: &str) -> Result<(), String> {
+    use std::net::ToSocketAddrs;
+    let addr_str = format!("{}:{}", ip.trim(), port.trim());
+    let addrs = addr_str
+        .to_socket_addrs()
+        .map_err(|e| format!("Invalid proxy address: {}", e))?;
+        
+    let mut last_err = "Could not resolve proxy address".to_string();
+    let mut connected = false;
+    
+    for addr in addrs {
+        match TcpStream::connect_timeout(&addr, Duration::from_millis(1500)) {
+            Ok(_) => {
+                connected = true;
+                break;
+            }
+            Err(e) => {
+                last_err = format!("{}", e);
+            }
+        }
+    }
+    
+    if connected {
+        Ok(())
+    } else {
+        Err(last_err)
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+async fn set_proxy_config(
+    app: AppHandle,
+    state: tauri::State<'_, ProxyState>,
+    config: ProxyConfig,
+) -> Result<(), String> {
+    let mut final_config = config.clone();
+    if final_config.enabled {
+        if final_config.ip.trim().is_empty() || final_config.port.trim().is_empty() {
+            return Err("Proxy IP and Port cannot be empty".to_string());
+        }
+        test_proxy_connection(&final_config.ip, &final_config.port)?;
+
+        let proxy_type = final_config.proxy_type.trim().to_lowercase();
+        let scheme = if proxy_type == "socks5" {
+            "socks5"
+        } else {
+            "http"
+        };
+        let proxy_url_str = format!("{}://{}:{}", scheme, final_config.ip.trim(), final_config.port.trim());
+        std::env::set_var("http_proxy", &proxy_url_str);
+        std::env::set_var("https_proxy", &proxy_url_str);
+        std::env::set_var("all_proxy", &proxy_url_str);
+    } else {
+        // Explicitly clear proxy settings when disabled
+        final_config.ip = "".to_string();
+        final_config.port = "".to_string();
+        std::env::remove_var("http_proxy");
+        std::env::remove_var("https_proxy");
+        std::env::remove_var("all_proxy");
+    }
+
+    // Save to persistent file
+    save_proxy_config(&app, &final_config)?;
+
+    if let Ok(mut lock) = state.0.lock() {
+        *lock = final_config;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+async fn set_proxy_config() -> Result<(), String> {
+    Ok(())
+}
+
 #[tauri::command]
 async fn trigger_download(app: AppHandle, label: String, url: String) -> Result<(), String> {
     if let Some(webview) = app.get_webview(&label) {
@@ -202,6 +321,32 @@ async fn open_webview(
 
         let mut webview_builder =
             WebviewBuilder::new(&label, tauri::WebviewUrl::External(url_data));
+
+        #[cfg(not(target_os = "android"))]
+        {
+            // Always set a unique data directory for this webview to force a separate WebView2 environment
+            if let Ok(app_data) = app.path().app_data_dir() {
+                let unique_dir = app_data.join(format!("webview-data-{}", label));
+                webview_builder = webview_builder.data_directory(unique_dir);
+            }
+
+            if let Some(proxy_state) = app.try_state::<ProxyState>() {
+                if let Ok(config) = proxy_state.0.lock() {
+                    if config.enabled && !config.ip.trim().is_empty() && !config.port.trim().is_empty() {
+                        let proxy_type = config.proxy_type.trim().to_lowercase();
+                        let scheme = if proxy_type == "socks5" {
+                            "socks5"
+                        } else {
+                            "http"
+                        };
+                        let proxy_url_str = format!("{}://{}:{}", scheme, config.ip.trim(), config.port.trim());
+                        if let Ok(proxy_url) = tauri::Url::parse(&proxy_url_str) {
+                            webview_builder = webview_builder.proxy_url(proxy_url);
+                        }
+                    }
+                }
+            }
+        }
 
         // Fetch active extensions and build injection script
         let mut extensions_js = String::new();
@@ -959,6 +1104,16 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     }
 
+    #[cfg(not(target_os = "android"))]
+    {
+        builder = builder.manage(ProxyState(std::sync::Mutex::new(ProxyConfig {
+            enabled: false,
+            proxy_type: "http".to_string(),
+            ip: "".to_string(),
+            port: "".to_string(),
+        })));
+    }
+
     builder
         .plugin(tauri_plugin_shell::init())
         .manage(SystemState(std::sync::Mutex::new(sysinfo::System::new_all())))
@@ -981,10 +1136,37 @@ pub fn run() {
             set_privacy_shield,
             get_cosmetic_rules,
             report_webview_navigation,
-            sync_extensions
+            sync_extensions,
+            set_proxy_config
         ])
         .setup(|app| {
             use tauri::Listener;
+            
+            // Load and apply proxy settings to environment if enabled on startup
+            #[cfg(not(target_os = "android"))]
+            {
+                if let Some(config) = load_saved_proxy_config(app.handle()) {
+                    if let Some(state) = app.handle().try_state::<ProxyState>() {
+                        if let Ok(mut lock) = state.0.lock() {
+                            *lock = config.clone();
+                        }
+                    }
+
+                    if config.enabled && !config.ip.trim().is_empty() && !config.port.trim().is_empty() {
+                        let proxy_type = config.proxy_type.trim().to_lowercase();
+                        let scheme = if proxy_type == "socks5" {
+                            "socks5"
+                        } else {
+                            "http"
+                        };
+                        let proxy_url_str = format!("{}://{}:{}", scheme, config.ip.trim(), config.port.trim());
+                        std::env::set_var("http_proxy", &proxy_url_str);
+                        std::env::set_var("https_proxy", &proxy_url_str);
+                        std::env::set_var("all_proxy", &proxy_url_str);
+                        println!("Proxy enabled at startup: {}", proxy_url_str);
+                    }
+                }
+            }
             
             #[cfg(mobile)]
             let handle = app.handle().clone();

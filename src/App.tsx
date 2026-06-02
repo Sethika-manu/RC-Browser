@@ -188,14 +188,34 @@ export default function App() {
 
     window.addEventListener('rc-download-finished', handleHistoryUpdate);
 
+    const handleRecreateWebview = () => {
+      const activeId = activeSessionIdRef.current;
+      if (activeId) {
+        const newId = `session-${Math.random().toString(36).substring(7)}`;
+        setSessions(prev => prev.map(s => s.id === activeId ? { ...s, id: newId } : s));
+        setActiveSessionId(newId);
+      }
+    };
+    window.addEventListener('rc-recreate-active-webview', handleRecreateWebview);
+
     // Initial sync of extensions to Rust backend on startup
     syncExtensionsToRust().catch(err => console.error("Error doing startup extensions sync:", err));
+
+    // Initial sync of proxy settings to Rust backend on startup
+    const storedProxy = localStorage.getItem('rc_proxy_config');
+    if (storedProxy) {
+      try {
+        const config = JSON.parse(storedProxy);
+        invoke("set_proxy_config", { config }).catch(err => console.error("Error doing startup proxy sync:", err));
+      } catch (e) {}
+    }
 
     return () => {
       window.removeEventListener('rc-native-context-menu', handleNativeContextMenu);
       unlistenPromise.then(unlisten => unlisten());
       unlistenUrlPromise.then(unlisten => unlisten());
       window.removeEventListener('rc-download-finished', handleHistoryUpdate);
+      window.removeEventListener('rc-recreate-active-webview', handleRecreateWebview);
     };
   }, []);
 

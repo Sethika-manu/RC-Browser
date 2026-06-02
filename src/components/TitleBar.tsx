@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw, Home, Star } from "lucide-react";
+import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw, Home, Star, Shield } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -44,6 +44,84 @@ interface TitleBarProps {
 
 export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessionId, sessions }: TitleBarProps) => {
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [showProxyPanel, setShowProxyPanel] = useState(false);
+  const [proxyEnabled, setProxyEnabled] = useState(() => {
+    try {
+      const stored = localStorage.getItem('rc_proxy_config');
+      if (stored) {
+        return JSON.parse(stored).enabled || false;
+      }
+    } catch (e) {}
+    return false;
+  });
+  const [proxyType, setProxyType] = useState<'http' | 'socks5'>(() => {
+    try {
+      const stored = localStorage.getItem('rc_proxy_config');
+      if (stored) {
+        return JSON.parse(stored).proxy_type || 'http';
+      }
+    } catch (e) {}
+    return 'http';
+  });
+  const [proxyIp, setProxyIp] = useState(() => {
+    try {
+      const stored = localStorage.getItem('rc_proxy_config');
+      if (stored) {
+        return JSON.parse(stored).ip || '';
+      }
+    } catch (e) {}
+    return '';
+  });
+  const [proxyPort, setProxyPort] = useState(() => {
+    try {
+      const stored = localStorage.getItem('rc_proxy_config');
+      if (stored) {
+        return JSON.parse(stored).port || '';
+      }
+    } catch (e) {}
+    return '';
+  });
+
+  const [proxyStatus, setProxyStatus] = useState<'idle' | 'success' | 'error'>(() => {
+    try {
+      const stored = localStorage.getItem('rc_proxy_config');
+      if (stored) {
+        return JSON.parse(stored).enabled ? 'success' : 'idle';
+      }
+    } catch (e) {}
+    return 'idle';
+  });
+  const [proxyError, setProxyError] = useState<string | null>(null);
+
+  const handleSaveProxy = async () => {
+    const config = {
+      enabled: proxyEnabled,
+      proxy_type: proxyType,
+      ip: proxyIp,
+      port: proxyPort
+    };
+
+    try {
+      setProxyError(null);
+      await invoke("set_proxy_config", { config });
+      localStorage.setItem('rc_proxy_config', JSON.stringify(config));
+      setProxyStatus(proxyEnabled ? 'success' : 'idle');
+      window.dispatchEvent(new Event('rc-recreate-active-webview'));
+      setShowProxyPanel(false);
+      if (proxyEnabled) {
+        alert("VPN Applied! Please open a new tab or restart the browser to route traffic.");
+      } else {
+        alert("VPN Disabled. Please restart the browser to restore standard connection.");
+      }
+    } catch (e: any) {
+      console.error("Failed to save proxy config:", e);
+      const errorMsg = e?.toString() || "Unknown proxy error";
+      setProxyError(errorMsg);
+      if (proxyEnabled) {
+        setProxyStatus('error');
+      }
+    }
+  };
 
   useEffect(() => {
     const checkBookmarkStatus = async () => {
@@ -377,10 +455,10 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
             <button
               onClick={handleToggleBookmark}
               onMouseDown={(e) => e.stopPropagation()}
-              className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors rounded-md ml-0.5 cursor-pointer"
+              className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors rounded-md ml-0.5 cursor-pointer flex items-center justify-center"
               title={isBookmarked ? "Remove Bookmark" : "Bookmark this Page"}
             >
-              <Star size={14} className={isBookmarked ? "text-amber-500 fill-amber-500 animate-[bounce_0.3s_ease]" : "text-neutral-500"} />
+              <Star size={15} className={isBookmarked ? "text-amber-500 fill-amber-500" : "text-neutral-500 hover:text-neutral-950 dark:hover:text-white"} />
             </button>
           </div>
         )}
@@ -427,6 +505,180 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
             </div>
           )}
         </form>
+
+        {!isMobile && (
+          <div className="relative flex-shrink-0">
+            <style>{`
+              @keyframes vpnPulseGreen {
+                0% {
+                  transform: scale(1);
+                  filter: drop-shadow(0 0 2px rgba(16, 185, 129, 0.4));
+                }
+                50% {
+                  transform: scale(1.08);
+                  filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.8));
+                }
+                100% {
+                  transform: scale(1);
+                  filter: drop-shadow(0 0 2px rgba(16, 185, 129, 0.4));
+                }
+              }
+              @keyframes vpnPulseRed {
+                0% {
+                  transform: scale(1);
+                  filter: drop-shadow(0 0 2px rgba(239, 68, 68, 0.4));
+                }
+                50% {
+                  transform: scale(1.08);
+                  filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.8));
+                }
+                100% {
+                  transform: scale(1);
+                  filter: drop-shadow(0 0 2px rgba(239, 68, 68, 0.4));
+                }
+              }
+              .vpn-pulse-green {
+                animation: vpnPulseGreen 2s infinite ease-in-out;
+              }
+              .vpn-pulse-red {
+                animation: vpnPulseRed 1.5s infinite ease-in-out;
+              }
+            `}</style>
+            <button
+              onClick={() => setShowProxyPanel(!showProxyPanel)}
+              onMouseDown={(e) => e.stopPropagation()}
+              className={`p-2 transition-all duration-300 rounded-lg cursor-pointer flex items-center justify-center gap-1.5 text-xs font-medium border ${
+                proxyEnabled
+                  ? proxyStatus === 'success'
+                    ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
+                    : "bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 shadow-[0_0_12px_rgba(239,68,68,0.15)]"
+                  : "bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-white/5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+              }`}
+              title="Proxy / VPN Configuration"
+            >
+              <Shield 
+                size={14} 
+                className={
+                  proxyEnabled
+                    ? proxyStatus === 'success'
+                      ? "fill-emerald-500/20 text-emerald-500 vpn-pulse-green"
+                      : "fill-rose-500/20 text-rose-500 vpn-pulse-red"
+                    : ""
+                } 
+              />
+              <span>VPN</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                proxyEnabled 
+                  ? proxyStatus === 'success' 
+                    ? "bg-emerald-500" 
+                    : "bg-rose-500" 
+                  : "bg-neutral-300 dark:bg-neutral-700"
+              }`} />
+            </button>
+
+            {showProxyPanel && (
+              <div
+                className="absolute right-0 mt-2 w-72 bg-white dark:bg-[#0c0c0c] border border-neutral-200 dark:border-white/10 rounded-2xl shadow-2xl p-5 z-[999999] text-left cursor-default select-text"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-4 pb-2.5 border-b border-neutral-100 dark:border-white/5">
+                  <div className="flex items-center gap-2">
+                    <Shield 
+                      size={16} 
+                      className={
+                        proxyEnabled 
+                          ? proxyStatus === 'success'
+                            ? "text-emerald-500 fill-emerald-500/10 vpn-pulse-green" 
+                            : "text-rose-500 fill-rose-500/10 vpn-pulse-red"
+                          : "text-neutral-400"
+                      } 
+                    />
+                    <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">VPN / Proxy Routing</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[9px] font-bold uppercase tracking-wider ${
+                      proxyEnabled ? 'text-emerald-500' : 'text-neutral-400'
+                    }`}>
+                      {proxyEnabled ? 'ENABLED' : 'DISABLED'}
+                    </span>
+                    <button
+                      onClick={() => setProxyEnabled(!proxyEnabled)}
+                      className={`w-9 h-5 rounded-full relative transition-all duration-300 shadow-inner cursor-pointer ${
+                        proxyEnabled
+                          ? 'bg-emerald-500 shadow-emerald-600/50'
+                          : 'bg-neutral-200 dark:bg-neutral-800'
+                      }`}
+                      title={proxyEnabled ? "Disable VPN" : "Enable VPN"}
+                    >
+                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-md transition-all duration-300 ease-out ${
+                        proxyEnabled ? 'translate-x-4' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {proxyError && (
+                    <div className="bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-lg p-2 text-[10px] font-medium leading-normal">
+                      ⚠️ Connection failed: {proxyError}
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">Proxy Protocol</label>
+                      <select
+                        value={proxyType}
+                        onChange={(e) => setProxyType(e.target.value as any)}
+                        className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-white/5 rounded-lg px-2.5 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-accent/30 focus:ring-1 focus:ring-accent/10 transition-all"
+                      >
+                        <option value="http">HTTP</option>
+                        <option value="socks5">SOCKS5</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">IP Address / Host</label>
+                      <input
+                        type="text"
+                        value={proxyIp}
+                        onChange={(e) => setProxyIp(e.target.value)}
+                        placeholder="e.g. 127.0.0.1"
+                        className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-white/5 rounded-lg px-2.5 py-2 text-xs text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:border-accent/30 focus:ring-1 focus:ring-accent/10 transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">Port</label>
+                      <input
+                        type="text"
+                        value={proxyPort}
+                        onChange={(e) => setProxyPort(e.target.value)}
+                        placeholder="e.g. 8080"
+                        className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-white/5 rounded-lg px-2.5 py-2 text-xs text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:border-accent/30 focus:ring-1 focus:ring-accent/10 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2.5 border-t border-neutral-100 dark:border-white/5 justify-end">
+                    <button
+                      onClick={() => setShowProxyPanel(false)}
+                      className="px-3 py-2 rounded-lg text-[10px] font-bold text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveProxy}
+                      className="px-4 py-2 rounded-lg text-[10px] font-bold text-white bg-accent hover:bg-accent/90 shadow-md shadow-accent/20 transition-all cursor-pointer"
+                    >
+                      Apply & Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         <div data-tauri-drag-region={isMobile ? undefined : ""} className="w-4 h-full" />
       </div>
 

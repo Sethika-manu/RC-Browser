@@ -12,7 +12,8 @@ import {
   Search,
   X,
   Download,
-  History as HistoryIcon
+  History as HistoryIcon,
+  Puzzle
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -27,7 +28,7 @@ interface Session {
 interface SidebarProps {
   sessions: Session[];
   activeSessionId: string | null;
-  activeView: 'browser' | 'settings' | 'downloads' | 'tabs' | 'history';
+  activeView: 'browser' | 'settings' | 'downloads' | 'tabs' | 'history' | 'extensions';
   onSessionSelect: (id: string) => void;
   onSessionClose: (id: string) => void;
   onNewSession: () => void;
@@ -36,6 +37,7 @@ interface SidebarProps {
   onSettingsClick: () => void;
   onDownloadsClick: () => void;
   onHistoryClick: () => void;
+  onExtensionsClick: () => void;
   isDownloading: boolean;
 }
 
@@ -51,9 +53,12 @@ export const Sidebar = ({
   onSettingsClick,
   onDownloadsClick,
   onHistoryClick,
+  onExtensionsClick,
   isDownloading
 }: SidebarProps) => {
   const { t, autoHideSidebar } = useSettings(); // Extract autoHideSidebar
+  
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   
   // Manual toggle state
   const [isManualCollapsed, setIsManualCollapsed] = useState(false);
@@ -187,6 +192,21 @@ export const Sidebar = ({
             <div className="flex-shrink-0"><HistoryIcon size={16} /></div>
             {!isCollapsed && <span className="text-xs font-medium">{t('nav_history')}</span>}
           </button>
+
+          {!isMobile && (
+            <button 
+              onClick={onExtensionsClick}
+              className={cn(
+                "w-full flex items-center gap-3 p-2.5 rounded-lg transition-all whitespace-nowrap",
+                activeView === 'extensions'
+                  ? "bg-neutral-100 dark:bg-white/5 text-neutral-900 dark:text-white shadow-sm"
+                  : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.02]"
+              )}
+            >
+              <div className="flex-shrink-0"><Puzzle size={16} /></div>
+              {!isCollapsed && <span className="text-xs font-medium">Extensions</span>}
+            </button>
+          )}
 
           <button 
             onClick={onSettingsClick}

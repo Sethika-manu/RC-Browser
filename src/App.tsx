@@ -11,6 +11,8 @@ import { Home, recordSiteVisit } from "./components/Home";
 import { Settings } from "./components/Settings";
 import { Downloads } from "./components/Downloads";
 import { History } from "./components/History";
+import { Extensions } from "./components/Extensions";
+import { syncExtensionsToRust } from "./lib/extensionsDb";
 
 // Lucide Icons
 import { 
@@ -88,7 +90,7 @@ export default function App() {
   
   const [searchValue, setSearchValue] = useState("");
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
-  const [appView, setAppView] = useState<'browser' | 'settings' | 'downloads' | 'tabs' | 'history'>('browser');
+  const [appView, setAppView] = useState<'browser' | 'settings' | 'downloads' | 'tabs' | 'history' | 'extensions'>('browser');
   
   const [toastMessage, setToastMessage] = useState<{title: string, desc: string} | null>(null);
   const [progressStates, setProgressStates] = useState<Record<string, number>>({});
@@ -184,6 +186,9 @@ export default function App() {
     };
 
     window.addEventListener('rc-download-finished', handleHistoryUpdate);
+
+    // Initial sync of extensions to Rust backend on startup
+    syncExtensionsToRust().catch(err => console.error("Error doing startup extensions sync:", err));
 
     return () => {
       window.removeEventListener('rc-native-context-menu', handleNativeContextMenu);
@@ -458,7 +463,7 @@ export default function App() {
     }
   };
 
-  const handleNavClick = (view: 'settings' | 'downloads' | 'tabs' | 'history') => {
+  const handleNavClick = (view: 'settings' | 'downloads' | 'tabs' | 'history' | 'extensions') => {
     setAppView(view);
     if (isMobile) {
       lastLoadedUrlRef.current = null;
@@ -592,6 +597,7 @@ export default function App() {
             onSettingsClick={() => handleNavClick('settings')}
             onDownloadsClick={() => handleNavClick('downloads')}
             onHistoryClick={() => handleNavClick('history')}
+            onExtensionsClick={() => handleNavClick('extensions')}
             activeView={appView}
             isDownloading={activeDownloads.length > 0} 
           />
@@ -613,6 +619,11 @@ export default function App() {
               if (appView === 'history') return (
                 <div className="absolute inset-0 z-20 bg-white dark:bg-[#0a0a0a] pointer-events-auto">
                   <History onNavigate={(url) => { handleNavigate(url); setAppView('browser'); }} />
+                </div>
+              );
+              if (appView === 'extensions') return (
+                <div className="absolute inset-0 z-20 bg-white dark:bg-[#0a0a0a] pointer-events-auto">
+                  <Extensions />
                 </div>
               );
               if (appView === 'browser') {

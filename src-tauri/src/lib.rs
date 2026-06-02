@@ -20,6 +20,18 @@ struct SystemState(std::sync::Mutex<sysinfo::System>);
 
 struct PrivacyState(std::sync::atomic::AtomicBool);
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+struct Extension {
+    id: String,
+    name: String,
+    description: String,
+    js: String,
+    css: String,
+    enabled: bool,
+}
+
+struct ExtensionsState(std::sync::Mutex<Vec<Extension>>);
+
 fn get_ping() -> u64 {
     let start = Instant::now();
     let addr = "1.1.1.1:53".parse::<SocketAddr>().unwrap();
@@ -123,6 +135,18 @@ async fn set_privacy_shield(
 }
 
 #[tauri::command]
+async fn sync_extensions(
+    app: AppHandle,
+    extensions: Vec<Extension>,
+) -> Result<(), String> {
+    if let Some(state) = app.try_state::<ExtensionsState>() {
+        let mut lock = state.0.lock().map_err(|e| e.to_string())?;
+        *lock = extensions;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 async fn trigger_download(app: AppHandle, label: String, url: String) -> Result<(), String> {
     if let Some(webview) = app.get_webview(&label) {
         let js = format!(
@@ -178,6 +202,55 @@ async fn open_webview(
 
         let mut webview_builder =
             WebviewBuilder::new(&label, tauri::WebviewUrl::External(url_data));
+
+        // Fetch active extensions and build injection script
+        let mut extensions_js = String::new();
+        if let Some(state) = app.try_state::<ExtensionsState>() {
+            if let Ok(exts) = state.0.lock() {
+                for ext in exts.iter() {
+                    if ext.enabled {
+                        // Inject JS
+                        if !ext.js.trim().is_empty() {
+                            extensions_js.push_str(&format!(
+                                r#"
+                                try {{
+                                    (function() {{
+                                        {}
+                                    }})();
+                                }} catch(e) {{
+                                    console.error("Error running extension {}:", e);
+                                }}
+                                "#,
+                                ext.js, ext.name
+                            ));
+                        }
+                        // Inject CSS
+                        if !ext.css.trim().is_empty() {
+                            let escaped_css = ext.css.replace("`", "\\`").replace("$", "\\$");
+                            extensions_js.push_str(&format!(
+                                r#"
+                                try {{
+                                    (function() {{
+                                        const style = document.createElement('style');
+                                        style.id = 'rc-extension-css-{}';
+                                        style.textContent = `{}`;
+                                        (document.head || document.documentElement).appendChild(style);
+                                    }})();
+                                }} catch(e) {{
+                                    console.error("Error applying extension CSS {}:", e);
+                                }}
+                                "#,
+                                ext.id, escaped_css, ext.name
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        if !extensions_js.is_empty() {
+            webview_builder = webview_builder.initialization_script(&extensions_js);
+        }
 
         webview_builder = webview_builder.initialization_script(&format!(
             r#"
@@ -890,6 +963,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(SystemState(std::sync::Mutex::new(sysinfo::System::new_all())))
         .manage(PrivacyState(std::sync::atomic::AtomicBool::new(true)))
+        .manage(ExtensionsState(std::sync::Mutex::new(Vec::new())))
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -906,7 +980,8 @@ pub fn run() {
             trigger_download,
             set_privacy_shield,
             get_cosmetic_rules,
-            report_webview_navigation
+            report_webview_navigation,
+            sync_extensions
         ])
         .setup(|app| {
             use tauri::Listener;

@@ -17,7 +17,7 @@ export const Viewport = ({
   sessions: Session[],
   activeSessionId: string | null,
   isPaletteOpen: boolean,
-  appView: 'browser' | 'settings' | 'console' | 'downloads' | 'tabs' | 'history'
+  appView: 'browser' | 'settings' | 'console' | 'downloads' | 'tabs' | 'history' | 'extensions'
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const initializedWebviews = useRef<Set<string>>(new Set());
@@ -118,7 +118,7 @@ export const Viewport = ({
         }
 
         // Sync Bounds & Visibility
-        const isOverlayVisible = appView === 'settings' || appView === 'console' || appView === 'downloads' || appView === 'tabs' || appView === 'history';
+        const isOverlayVisible = appView === 'settings' || appView === 'console' || appView === 'downloads' || appView === 'tabs' || appView === 'history' || appView === 'extensions';
         if (isOverlayVisible) {
           for (const label of initializedWebviews.current) {
             await invoke("set_webview_bounds", { 

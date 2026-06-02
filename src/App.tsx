@@ -12,6 +12,7 @@ import { Settings } from "./components/Settings";
 import { Downloads } from "./components/Downloads";
 import { History } from "./components/History";
 import { Extensions } from "./components/Extensions";
+import { Bookmarks } from "./components/Bookmarks";
 import { syncExtensionsToRust } from "./lib/extensionsDb";
 
 // Lucide Icons
@@ -90,7 +91,7 @@ export default function App() {
   
   const [searchValue, setSearchValue] = useState("");
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
-  const [appView, setAppView] = useState<'browser' | 'settings' | 'downloads' | 'tabs' | 'history' | 'extensions'>('browser');
+  const [appView, setAppView] = useState<'browser' | 'settings' | 'downloads' | 'tabs' | 'history' | 'extensions' | 'bookmarks'>('browser');
   
   const [toastMessage, setToastMessage] = useState<{title: string, desc: string} | null>(null);
   const [progressStates, setProgressStates] = useState<Record<string, number>>({});
@@ -463,7 +464,7 @@ export default function App() {
     }
   };
 
-  const handleNavClick = (view: 'settings' | 'downloads' | 'tabs' | 'history' | 'extensions') => {
+  const handleNavClick = (view: 'settings' | 'downloads' | 'tabs' | 'history' | 'extensions' | 'bookmarks') => {
     setAppView(view);
     if (isMobile) {
       lastLoadedUrlRef.current = null;
@@ -504,6 +505,7 @@ export default function App() {
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           activeSessionId={activeSessionId}
+          sessions={sessions}
         />
 
         <AnimatePresence>
@@ -598,6 +600,7 @@ export default function App() {
             onDownloadsClick={() => handleNavClick('downloads')}
             onHistoryClick={() => handleNavClick('history')}
             onExtensionsClick={() => handleNavClick('extensions')}
+            onBookmarksClick={() => handleNavClick('bookmarks')}
             activeView={appView}
             isDownloading={activeDownloads.length > 0} 
           />
@@ -624,6 +627,11 @@ export default function App() {
               if (appView === 'extensions') return (
                 <div className="absolute inset-0 z-20 bg-white dark:bg-[#0a0a0a] pointer-events-auto">
                   <Extensions />
+                </div>
+              );
+              if (appView === 'bookmarks') return (
+                <div className="absolute inset-0 z-20 bg-white dark:bg-[#0a0a0a] pointer-events-auto">
+                  <Bookmarks onNavigate={(url) => { handleNavigate(url); setAppView('browser'); }} />
                 </div>
               );
               if (appView === 'browser') {

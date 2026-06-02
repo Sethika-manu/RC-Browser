@@ -13,7 +13,8 @@ import {
   X,
   Download,
   History as HistoryIcon,
-  Puzzle
+  Puzzle,
+  Star
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -28,7 +29,7 @@ interface Session {
 interface SidebarProps {
   sessions: Session[];
   activeSessionId: string | null;
-  activeView: 'browser' | 'settings' | 'downloads' | 'tabs' | 'history' | 'extensions';
+  activeView: 'browser' | 'settings' | 'downloads' | 'tabs' | 'history' | 'extensions' | 'bookmarks';
   onSessionSelect: (id: string) => void;
   onSessionClose: (id: string) => void;
   onNewSession: () => void;
@@ -38,6 +39,7 @@ interface SidebarProps {
   onDownloadsClick: () => void;
   onHistoryClick: () => void;
   onExtensionsClick: () => void;
+  onBookmarksClick: () => void;
   isDownloading: boolean;
 }
 
@@ -54,6 +56,7 @@ export const Sidebar = ({
   onDownloadsClick,
   onHistoryClick,
   onExtensionsClick,
+  onBookmarksClick,
   isDownloading
 }: SidebarProps) => {
   const { t, autoHideSidebar } = useSettings(); // Extract autoHideSidebar
@@ -178,6 +181,19 @@ export const Sidebar = ({
               <Download size={16} className={cn(isDownloading && "text-accent")} />
             </motion.div>
             {!isCollapsed && <span className="text-xs font-medium">Downloads</span>}
+          </button>
+
+          <button 
+            onClick={onBookmarksClick}
+            className={cn(
+              "w-full flex items-center gap-3 p-2.5 rounded-lg transition-all whitespace-nowrap",
+              activeView === 'bookmarks'
+                ? "bg-neutral-100 dark:bg-white/5 text-neutral-900 dark:text-white shadow-sm"
+                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.02]"
+            )}
+          >
+            <div className="flex-shrink-0"><Star size={16} /></div>
+            {!isCollapsed && <span className="text-xs font-medium">Bookmarks</span>}
           </button>
 
           <button 

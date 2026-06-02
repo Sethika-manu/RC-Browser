@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw, Home } from "lucide-react";
+import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw, Home, Star } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -39,9 +39,52 @@ interface TitleBarProps {
   searchValue: string;
   onSearchChange: (value: string) => void;
   activeSessionId: string | null;
+  sessions?: { id: string; title: string; url: string }[];
 }
 
-export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessionId }: TitleBarProps) => {
+export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessionId, sessions }: TitleBarProps) => {
+  const [isBookmarked, setIsBookmarked] = useState(false);
+
+  useEffect(() => {
+    const checkBookmarkStatus = async () => {
+      const url = searchValue.trim();
+      if (url && url.startsWith('http')) {
+        const { isPageBookmarked } = await import("../lib/bookmarksDb");
+        const bookmarked = await isPageBookmarked(url);
+        setIsBookmarked(bookmarked);
+      } else {
+        setIsBookmarked(false);
+      }
+    };
+
+    checkBookmarkStatus();
+
+    window.addEventListener('bookmarks-changed', checkBookmarkStatus);
+    return () => {
+      window.removeEventListener('bookmarks-changed', checkBookmarkStatus);
+    };
+  }, [searchValue]);
+
+  const handleToggleBookmark = async () => {
+    const url = searchValue.trim();
+    if (!url || !url.startsWith('http')) return;
+
+    try {
+      const { addBookmark, deleteBookmark } = await import("../lib/bookmarksDb");
+      const activeSession = sessions?.find(s => s.id === activeSessionId);
+      const title = activeSession?.title || url;
+
+      if (isBookmarked) {
+        await deleteBookmark(url);
+        setIsBookmarked(false);
+      } else {
+        await addBookmark(url, title);
+        setIsBookmarked(true);
+      }
+    } catch (e) {
+      console.error("Failed to toggle bookmark:", e);
+    }
+  };
   const [isMaximized, setIsMaximized] = useState(false);
   const [appVersion, setAppVersion] = useState("0.1.0");
   const [isMobile, setIsMobile] = useState(false);
@@ -330,6 +373,14 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
               title="Home Start Page"
             >
               <Home size={15} />
+            </button>
+            <button
+              onClick={handleToggleBookmark}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors rounded-md ml-0.5 cursor-pointer"
+              title={isBookmarked ? "Remove Bookmark" : "Bookmark this Page"}
+            >
+              <Star size={14} className={isBookmarked ? "text-amber-500 fill-amber-500 animate-[bounce_0.3s_ease]" : "text-neutral-500"} />
             </button>
           </div>
         )}

@@ -320,20 +320,29 @@ export const Extensions = () => {
               </div>
 
               {/* JS Injection Code */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Code size={14} className="text-accent" /> Javascript Code (Executes on Page Load)
-                  </label>
-                  <span className="text-[10px] text-neutral-400 font-mono">self-executing IIFE recommended</span>
+              <div className="space-y-4">
+                <div className="bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/20 dark:border-amber-500/10 rounded-xl p-4 flex gap-3 text-amber-800 dark:text-amber-400">
+                  <AlertTriangle size={18} className="flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-500" />
+                  <div className="text-xs leading-relaxed font-medium">
+                    <strong>⚠️ IMPORTANT:</strong> Do not remove the <code>setInterval</code> block. YouTube is a Single Page Application, so your custom script must wait for the page to fully render before executing.
+                  </div>
                 </div>
-                <textarea
-                  value={formJs}
-                  onChange={(e) => setFormJs(e.target.value)}
-                  rows={10}
-                  className="w-full bg-neutral-50 dark:bg-[#0c0c0c] border border-neutral-200 dark:border-white/5 rounded-2xl p-4 text-xs font-mono text-neutral-800 dark:text-neutral-300 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all leading-relaxed whitespace-pre"
-                  placeholder={`(function() {\n  // your javascript code here\n})();`}
-                />
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Code size={14} className="text-accent" /> Javascript Code (Executes on Page Load)
+                    </label>
+                    <span className="text-[10px] text-neutral-400 font-mono">self-executing IIFE recommended</span>
+                  </div>
+                  <textarea
+                    value={formJs}
+                    onChange={(e) => setFormJs(e.target.value)}
+                    rows={10}
+                    className="w-full bg-neutral-50 dark:bg-[#0c0c0c] border border-neutral-200 dark:border-white/5 rounded-2xl p-4 text-xs font-mono text-neutral-800 dark:text-neutral-300 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all leading-relaxed whitespace-pre"
+                    placeholder={`(function() {\n  // your javascript code here\n})();`}
+                  />
+                </div>
               </div>
 
               {/* CSS Injection Styling */}

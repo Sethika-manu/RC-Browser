@@ -173,3 +173,12 @@ export const logHistoryVisit = async (url: string, title?: string) => {
     console.error("Failed to log history visit:", e);
   }
 };
+
+export function clearSearchSuggestionsOnly(): void {
+  try {
+    localStorage.removeItem('app_browser_history');
+    window.dispatchEvent(new Event('search-suggestions-cleared'));
+  } catch (e) {
+    console.error("Failed to clear search suggestions:", e);
+  }
+}

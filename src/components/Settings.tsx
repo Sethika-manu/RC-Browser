@@ -34,6 +34,8 @@ const TRANSLATIONS: Record<Language, any> = {
     privacy_desc: 'Block trackers and intrusive ads',
     clear: 'Clear Data',
     clear_desc: 'Clear browsing history and cache',
+    clear_suggestions: 'Clear Search Suggestions',
+    clear_suggestions_desc: 'Clear autocomplete search suggestions from the search bar',
     shortcuts: 'Shortcuts',
     shortcuts_desc: 'Configure keyboard shortcuts',
     sidebar: 'Sidebar',
@@ -54,6 +56,8 @@ const TRANSLATIONS: Record<Language, any> = {
     privacy_desc: 'අනවශ්‍ය දැන්වීම් අවහිර කරන්න',
     clear: 'දත්ත මකන්න',
     clear_desc: 'ඉතිහාසය සහ මතකය මකන්න',
+    clear_suggestions: 'සෙවුම් යෝජනා මකන්න',
+    clear_suggestions_desc: 'සෙවුම් තීරුවේ ඇති ස්වයංක්‍රීය යෝජනා මකන්න',
     shortcuts: 'කෙටිමං',
     shortcuts_desc: 'යතුරුපුවරු කෙටිමං සකසන්න',
     sidebar: 'පැති තීරුව',
@@ -74,6 +78,8 @@ const TRANSLATIONS: Record<Language, any> = {
     privacy_desc: 'Ads block karanna',
     clear: 'Data makanna',
     clear_desc: 'Okoma ain karala danna',
+    clear_suggestions: 'Search Suggestions makanna',
+    clear_suggestions_desc: 'Search bar eke suggestions okkoma ain karanna',
     shortcuts: 'Shortcuts tika',
     shortcuts_desc: 'Keys hadaganna',
     sidebar: 'Sidebar eka',
@@ -174,6 +180,19 @@ export const Settings = () => {
     }
   };
 
+  const handleClearSearchSuggestions = async () => {
+    const confirmClear = window.confirm("Are you sure you want to clear your search suggestions? This will delete all recent queries shown under the search bar.");
+    if (confirmClear) {
+      try {
+        const { clearSearchSuggestionsOnly } = await import("../lib/historyDb");
+        await clearSearchSuggestionsOnly();
+        alert("Search suggestions cleared successfully!");
+      } catch (err) {
+        console.error("Failed to clear search suggestions:", err);
+      }
+    }
+  };
+
   const sections: SettingSection[] = [
     {
       title: "General",
@@ -234,6 +253,13 @@ export const Settings = () => {
           description: t.clear_desc, 
           action: true,
           onClick: handleClearBrowsingData
+        },
+        { 
+          icon: <Check size={18} />, 
+          label: t.clear_suggestions, 
+          description: t.clear_suggestions_desc, 
+          action: true,
+          onClick: handleClearSearchSuggestions
         }
       ]
     },

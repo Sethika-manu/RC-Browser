@@ -63,6 +63,16 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
   }, []);
 
   useEffect(() => {
+    const handleSuggestionsCleared = () => {
+      setSuggestions([]);
+    };
+    window.addEventListener('search-suggestions-cleared', handleSuggestionsCleared);
+    return () => {
+      window.removeEventListener('search-suggestions-cleared', handleSuggestionsCleared);
+    };
+  }, []);
+
+  useEffect(() => {
     const updateIsMaximized = async () => {
       setIsMaximized(await appWindow.isMaximized());
     };

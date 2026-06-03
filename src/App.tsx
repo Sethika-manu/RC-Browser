@@ -24,7 +24,8 @@ import {
   Copy,
   ExternalLink,
   Image as ImageIcon,
-  History as HistoryIcon
+  History as HistoryIcon,
+  Bookmark as BookmarkIcon
 } from "lucide-react";
 
 import { logEvent } from "firebase/analytics";
@@ -651,7 +652,7 @@ export default function App() {
               );
               if (appView === 'bookmarks') return (
                 <div className="absolute inset-0 z-20 bg-white dark:bg-[#0a0a0a] pointer-events-auto">
-                  <Bookmarks onNavigate={(url) => { handleNavigate(url); setAppView('browser'); }} />
+                  <Bookmarks isMobile={isMobile} onNavigate={(url) => { handleNavigate(url); setAppView('browser'); }} />
                 </div>
               );
               if (appView === 'browser') {
@@ -888,25 +889,28 @@ export default function App() {
         </AnimatePresence>
 
         <nav 
-          className="md:hidden w-full h-[110px] bg-white dark:bg-gray-900 flex items-center justify-around px-2 pb-[env(safe-area-inset-bottom,0px)]"
+          className="md:hidden w-full h-[110px] bg-white dark:bg-gray-900 flex items-center justify-around px-1 pb-[env(safe-area-inset-bottom,0px)]"
         >
-          <button onClick={handleGoHome} className="flex flex-col items-center justify-center w-full h-full text-xs text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
+          <button onClick={handleGoHome} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
             <HomeIcon size={20} className="mb-1" /><span>Home</span>
           </button>
-          <button onClick={() => handleNavClick('tabs')} className="flex flex-col items-center justify-center w-full h-full text-xs text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors relative">
+          <button onClick={() => handleNavClick('tabs')} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors relative">
             <div className="relative mb-1">
               <Layers size={20} />
               {sessions.length > 0 && <span className="absolute -top-1.5 -right-2 bg-accent text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-white dark:border-[#0c0c0c]">{sessions.length}</span>}
             </div>
             <span>Tabs</span>
           </button>
-          <button onClick={() => handleNavClick('history')} className="flex flex-col items-center justify-center w-full h-full text-xs text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
+          <button onClick={() => handleNavClick('bookmarks')} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
+            <BookmarkIcon size={20} className="mb-1" /><span>Bookmarks</span>
+          </button>
+          <button onClick={() => handleNavClick('history')} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
             <HistoryIcon size={20} className="mb-1" /><span>History</span>
           </button>
-          <button onClick={() => handleNavClick('downloads')} className="flex flex-col items-center justify-center w-full h-full text-xs text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
+          <button onClick={() => handleNavClick('downloads')} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
             <Download size={20} className="mb-1" /><span>Downloads</span>
           </button>
-          <button onClick={() => handleNavClick('settings')} className="flex flex-col items-center justify-center w-full h-full text-xs text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
+          <button onClick={() => handleNavClick('settings')} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
             <SettingsIcon size={20} className="mb-1" /><span>Settings</span>
           </button>
         </nav>

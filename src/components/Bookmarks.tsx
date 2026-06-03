@@ -20,12 +20,14 @@ import {
 
 interface BookmarksProps {
   onNavigate: (url: string) => void;
+  isMobile?: boolean;
 }
 
-export const Bookmarks = ({ onNavigate }: BookmarksProps) => {
+export const Bookmarks = ({ onNavigate, isMobile = false }: BookmarksProps) => {
   const [bookmarks, setBookmarks] = useState<BookmarkItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState<string | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const loadBookmarks = async () => {
     try {
@@ -64,14 +66,7 @@ export const Bookmarks = ({ onNavigate }: BookmarksProps) => {
   };
 
   const handleClearAll = async () => {
-    if (window.confirm("Are you sure you want to clear all bookmarks? This action cannot be undone.")) {
-      try {
-        await clearAllBookmarks();
-        showToast("All bookmarks cleared.");
-      } catch (err) {
-        console.error("Failed to clear bookmarks:", err);
-      }
-    }
+    setShowClearConfirm(true);
   };
 
   const formatDate = (timestamp: number) => {
@@ -89,7 +84,7 @@ export const Bookmarks = ({ onNavigate }: BookmarksProps) => {
 
   return (
     <div className="h-full bg-white dark:bg-[#050505] overflow-y-auto custom-scrollbar transition-colors duration-300">
-      <div className="max-w-3xl mx-auto py-12 px-8">
+      <div className="max-w-3xl mx-auto py-6 px-4 md:py-12 md:px-8">
         
         {/* Toast Notification */}
         <AnimatePresence>
@@ -107,7 +102,7 @@ export const Bookmarks = ({ onNavigate }: BookmarksProps) => {
         </AnimatePresence>
 
         {/* Header/Title Row */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-12">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 md:mb-12">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-amber-500/10 rounded-xl border border-amber-500/20">
               <Star size={24} className="text-amber-500 fill-amber-500/30" />
@@ -129,7 +124,7 @@ export const Bookmarks = ({ onNavigate }: BookmarksProps) => {
 
         {/* Search bar */}
         {bookmarks.length > 0 && (
-          <div className="relative group mb-6">
+          <div className="relative group mb-4 md:mb-6">
             <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
               <Search size={16} className="text-neutral-400 dark:text-neutral-600 group-focus-within:text-amber-500 transition-colors" />
             </div>
@@ -178,12 +173,17 @@ export const Bookmarks = ({ onNavigate }: BookmarksProps) => {
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.2 }}
-                    onClick={() => onNavigate(bookmark.url)}
-                    className={`flex items-center justify-between p-4.5 cursor-pointer transition-all hover:bg-neutral-50 dark:hover:bg-white/[0.01] group ${
+                    onClick={isMobile ? undefined : () => onNavigate(bookmark.url)}
+                    className={`flex items-center justify-between p-4.5 transition-all hover:bg-neutral-50 dark:hover:bg-white/[0.01] group ${
+                      isMobile ? '' : 'cursor-pointer'
+                    } ${
                       idx !== filteredBookmarks.length - 1 ? 'border-b border-neutral-100 dark:border-white/5' : ''
                     }`}
                   >
-                    <div className="flex items-center gap-4 flex-1 min-w-0 mr-4">
+                    <div 
+                      onClick={isMobile ? () => onNavigate(bookmark.url) : undefined}
+                      className={`flex items-center gap-4 flex-1 min-w-0 mr-4 ${isMobile ? 'cursor-pointer' : ''}`}
+                    >
                       <div className="flex-shrink-0 w-9 h-9 bg-neutral-50 dark:bg-neutral-900 rounded-xl border border-neutral-150 dark:border-white/5 flex items-center justify-center overflow-hidden">
                         {bookmark.favicon ? (
                           <img 
@@ -212,7 +212,7 @@ export const Bookmarks = ({ onNavigate }: BookmarksProps) => {
                           </span>
                         </div>
                         <div className="flex items-center gap-4 text-xs text-neutral-400 dark:text-neutral-500">
-                          <span className="truncate max-w-sm font-medium font-mono text-[10px] text-neutral-400 dark:text-neutral-600 group-hover:text-neutral-500 dark:group-hover:text-neutral-400 transition-colors">
+                          <span className="truncate max-w-[150px] sm:max-w-xs md:max-w-sm font-medium font-mono text-[10px] text-neutral-400 dark:text-neutral-600 group-hover:text-neutral-500 dark:group-hover:text-neutral-400 transition-colors">
                             {bookmark.url}
                           </span>
                           <span className="flex items-center gap-1 flex-shrink-0 text-[10px] opacity-80">
@@ -239,10 +239,13 @@ export const Bookmarks = ({ onNavigate }: BookmarksProps) => {
                       {/* Remove Button */}
                       <button
                         onClick={(e) => handleRemove(e, bookmark.id!, bookmark.title)}
-                        className="p-2 text-neutral-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                        className={isMobile 
+                          ? "p-3 text-red-500 bg-red-500/5 dark:bg-red-500/10 active:bg-red-500/20 rounded-xl transition-all"
+                          : "p-2 text-neutral-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                        }
                         title="Remove Bookmark"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={isMobile ? 18 : 14} />
                       </button>
                     </div>
                   </motion.div>
@@ -262,6 +265,60 @@ export const Bookmarks = ({ onNavigate }: BookmarksProps) => {
         </div>
 
       </div>
+
+      {/* Custom Confirmation Modal */}
+      <AnimatePresence>
+        {showClearConfirm && (
+          <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowClearConfirm(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.95, y: 15, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.95, y: 15, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              className="bg-white dark:bg-[#121212] rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-neutral-200 dark:border-neutral-800 relative z-10"
+            >
+              <div className="flex items-center gap-3 mb-4 text-red-500">
+                <div className="p-2.5 bg-red-500/10 rounded-xl border border-red-500/20">
+                  <Trash2 size={22} />
+                </div>
+                <h3 className="text-lg font-bold text-neutral-900 dark:text-white">Clear All Bookmarks?</h3>
+              </div>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6 leading-relaxed">
+                Are you sure you want to delete all bookmarks? This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowClearConfirm(false);
+                    try {
+                      await clearAllBookmarks();
+                      showToast("All bookmarks cleared.");
+                    } catch (err) {
+                      console.error("Failed to clear bookmarks:", err);
+                    }
+                  }}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20"
+                >
+                  Clear All
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

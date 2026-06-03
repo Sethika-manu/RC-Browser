@@ -25,7 +25,8 @@ import {
   ExternalLink,
   Image as ImageIcon,
   History as HistoryIcon,
-  Bookmark as BookmarkIcon
+  Bookmark as BookmarkIcon,
+  Plus
 } from "lucide-react";
 
 import { logEvent } from "firebase/analytics";
@@ -93,6 +94,7 @@ export default function App() {
   const [searchValue, setSearchValue] = useState("");
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [appView, setAppView] = useState<'browser' | 'settings' | 'downloads' | 'tabs' | 'history' | 'extensions' | 'bookmarks'>('browser');
+  const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
   
   const [toastMessage, setToastMessage] = useState<{title: string, desc: string} | null>(null);
   const [progressStates, setProgressStates] = useState<Record<string, number>>({});
@@ -888,30 +890,101 @@ export default function App() {
           )}
         </AnimatePresence>
 
+        {/* Speed Dial Backdrop and Pop-out items */}
+        <AnimatePresence>
+          {(isSpeedDialOpen && isMobile) && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsSpeedDialOpen(false)}
+                className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-[2px] z-[99990] pointer-events-auto md:hidden"
+              />
+
+              {/* Speed Dial Items */}
+              <div className="fixed bottom-[125px] right-6 z-[99995] flex flex-col items-end gap-3.5 pointer-events-auto md:hidden">
+                {/* Bookmarks Item */}
+                <motion.div
+                  initial={{ opacity: 0, y: 15, scale: 0.8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 15, scale: 0.8 }}
+                  transition={{ type: "spring", damping: 20, stiffness: 300, delay: 0.05 }}
+                  className="flex items-center gap-2.5 cursor-pointer"
+                  onClick={() => { handleNavClick('bookmarks'); setIsSpeedDialOpen(false); }}
+                >
+                  <span className="bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-semibold text-neutral-800 dark:text-neutral-200 border border-neutral-200/50 dark:border-white/5 shadow-md whitespace-nowrap">
+                    Bookmarks
+                  </span>
+                  <div className="w-12 h-12 bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-white/5 rounded-full flex items-center justify-center text-neutral-650 dark:text-neutral-300 shadow-lg hover:scale-105 active:scale-95 transition-transform">
+                    <BookmarkIcon size={18} className="text-amber-500 fill-amber-500/20" />
+                  </div>
+                </motion.div>
+
+                {/* Downloads Item */}
+                <motion.div
+                  initial={{ opacity: 0, y: 15, scale: 0.8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 15, scale: 0.8 }}
+                  transition={{ type: "spring", damping: 20, stiffness: 300, delay: 0.1 }}
+                  className="flex items-center gap-2.5 cursor-pointer"
+                  onClick={() => { handleNavClick('downloads'); setIsSpeedDialOpen(false); }}
+                >
+                  <span className="bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-semibold text-neutral-800 dark:text-neutral-200 border border-neutral-200/50 dark:border-white/5 shadow-md whitespace-nowrap">
+                    Downloads
+                  </span>
+                  <div className="w-12 h-12 bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-white/5 rounded-full flex items-center justify-center text-neutral-650 dark:text-neutral-300 shadow-lg hover:scale-105 active:scale-95 transition-transform">
+                    <Download size={18} className="text-accent" />
+                  </div>
+                </motion.div>
+
+                {/* Settings Item */}
+                <motion.div
+                  initial={{ opacity: 0, y: 15, scale: 0.8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 15, scale: 0.8 }}
+                  transition={{ type: "spring", damping: 20, stiffness: 300, delay: 0.15 }}
+                  className="flex items-center gap-2.5 cursor-pointer"
+                  onClick={() => { handleNavClick('settings'); setIsSpeedDialOpen(false); }}
+                >
+                  <span className="bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-semibold text-neutral-800 dark:text-neutral-200 border border-neutral-200/50 dark:border-white/5 shadow-md whitespace-nowrap">
+                    Settings
+                  </span>
+                  <div className="w-12 h-12 bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-white/5 rounded-full flex items-center justify-center text-neutral-650 dark:text-neutral-300 shadow-lg hover:scale-105 active:scale-95 transition-transform">
+                    <SettingsIcon size={18} />
+                  </div>
+                </motion.div>
+              </div>
+            </>
+          )}
+        </AnimatePresence>
+
         <nav 
           className="md:hidden w-full h-[110px] bg-white dark:bg-gray-900 flex items-center justify-around px-1 pb-[env(safe-area-inset-bottom,0px)]"
         >
-          <button onClick={handleGoHome} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
+          <button onClick={() => { handleGoHome(); setIsSpeedDialOpen(false); }} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
             <HomeIcon size={20} className="mb-1" /><span>Home</span>
           </button>
-          <button onClick={() => handleNavClick('tabs')} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors relative">
+          <button onClick={() => { handleNavClick('tabs'); setIsSpeedDialOpen(false); }} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors relative">
             <div className="relative mb-1">
               <Layers size={20} />
               {sessions.length > 0 && <span className="absolute -top-1.5 -right-2 bg-accent text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-white dark:border-[#0c0c0c]">{sessions.length}</span>}
             </div>
             <span>Tabs</span>
           </button>
-          <button onClick={() => handleNavClick('bookmarks')} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
-            <BookmarkIcon size={20} className="mb-1" /><span>Bookmarks</span>
-          </button>
-          <button onClick={() => handleNavClick('history')} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
+          <button onClick={() => { handleNavClick('history'); setIsSpeedDialOpen(false); }} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
             <HistoryIcon size={20} className="mb-1" /><span>History</span>
           </button>
-          <button onClick={() => handleNavClick('downloads')} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
-            <Download size={20} className="mb-1" /><span>Downloads</span>
-          </button>
-          <button onClick={() => handleNavClick('settings')} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
-            <SettingsIcon size={20} className="mb-1" /><span>Settings</span>
+          <button onClick={() => setIsSpeedDialOpen(!isSpeedDialOpen)} className="flex flex-col items-center justify-center w-full h-full text-[10px] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors relative">
+            <motion.div 
+              className="relative mb-1 bg-accent text-white p-2.5 rounded-full shadow-lg shadow-accent/25 flex items-center justify-center"
+              animate={{ rotate: isSpeedDialOpen ? 135 : 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            >
+              <Plus size={20} />
+            </motion.div>
+            <span>{isSpeedDialOpen ? 'Close' : 'More'}</span>
           </button>
         </nav>
         <div className="hidden md:block">

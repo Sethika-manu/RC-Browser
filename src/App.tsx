@@ -175,6 +175,11 @@ export default function App() {
       }
     });
 
+    const unlistenTitlePromise = listen('webview-title-changed', (event: any) => {
+      const { label, title } = event.payload;
+      setSessions(prev => prev.map(s => s.id === label ? { ...s, title: (title === "about:blank" || title === "") ? "New Tab" : title } : s));
+    });
+
     const handleHistoryUpdate = (e: any) => {
       const fileName = getFileName(e.detail.path, e.detail.url);
       setDownloadHistory(prev => {
@@ -217,6 +222,7 @@ export default function App() {
       window.removeEventListener('rc-native-context-menu', handleNativeContextMenu);
       unlistenPromise.then(unlisten => unlisten());
       unlistenUrlPromise.then(unlisten => unlisten());
+      unlistenTitlePromise.then(unlisten => unlisten());
       window.removeEventListener('rc-download-finished', handleHistoryUpdate);
       window.removeEventListener('rc-recreate-active-webview', handleRecreateWebview);
     };

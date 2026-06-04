@@ -324,11 +324,22 @@ async fn open_webview(
 
         #[cfg(not(target_os = "android"))]
         {
-            // Always set a unique data directory for this webview to force a separate WebView2 environment
+            // Set a persistent data directory for webviews to save cookies, local storage, and active sessions
             if let Ok(app_data) = app.path().app_data_dir() {
-                let unique_dir = app_data.join(format!("webview-data-{}", label));
-                webview_builder = webview_builder.data_directory(unique_dir);
+                let persistent_dir = app_data.join("webview-profile");
+                webview_builder = webview_builder.data_directory(persistent_dir);
             }
+
+            let label_for_title = label.clone();
+            webview_builder = webview_builder.on_document_title_changed(move |webview, title| {
+                let _ = webview.app_handle().emit(
+                    "webview-title-changed",
+                    serde_json::json!({
+                        "label": &label_for_title,
+                        "title": title
+                    }),
+                );
+            });
 
             if let Some(proxy_state) = app.try_state::<ProxyState>() {
                 if let Ok(config) = proxy_state.0.lock() {

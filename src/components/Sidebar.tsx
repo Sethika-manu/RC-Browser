@@ -141,7 +141,11 @@ export const Sidebar = ({
                 )} />
                 {!isCollapsed && (
                   <span className="text-xs font-medium truncate flex-1">
-                    {session.url === "about:blank" ? "New Tab" : session.url.replace("https://", "").replace("www.", "").split("/")[0]}
+                    {session.title === "about:blank" || session.title === "" 
+                      ? "New Tab" 
+                      : (session.title.startsWith("http://") || session.title.startsWith("https://")) 
+                        ? session.title.replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0]
+                        : session.title}
                   </span>
                 )}
               </button>

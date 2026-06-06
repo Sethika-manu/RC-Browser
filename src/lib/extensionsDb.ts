@@ -6,11 +6,14 @@ export interface Extension {
   css: string;
   enabled: boolean;
   active?: boolean;
+  isVerified?: boolean;
+  isRemovable?: boolean;
+  type?: string;
 }
 
 const DB_NAME = 'RCBrowserExtensionsDB';
 const STORE_NAME = 'browser_extensions';
-const DB_VERSION = 21; // Bump version to force upgradeneeded trigger
+const DB_VERSION = 22; // Bump version to force upgradeneeded trigger
 
 const DEFAULT_EXTENSIONS: Extension[] = [
   {
@@ -20,6 +23,78 @@ const DEFAULT_EXTENSIONS: Extension[] = [
     js: `(function() { setInterval(() => { const player = document.getElementById('movie_player'); const video = document.querySelector('video.html5-main-video'); if (!player || !video) return; if (!video.dataset.rcPipSync) { video.dataset.rcPipSync = 'true'; video.addEventListener('pause', () => { if (document.pictureInPictureElement === video && player.pauseVideo) player.pauseVideo(); }); video.addEventListener('play', () => { if (document.pictureInPictureElement === video && player.playVideo) player.playVideo(); }); } if (document.getElementById('rc-pip-classic-btn')) return; document.querySelectorAll('.rc-pip-btn-classic').forEach(b => b.remove()); const btn = document.createElement('button'); btn.id = 'rc-pip-classic-btn'; btn.className = 'rc-pip-btn-classic'; btn.textContent = 'PiP Mode'; btn.style.cssText = 'position: absolute; top: 15px; left: 15px; z-index: 2147483647 !important; padding: 8px 14px; background: rgba(0,0,0,0.7); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; cursor: pointer; pointer-events: auto !important; font-family: sans-serif; font-size: 13px; font-weight: bold; backdrop-filter: blur(4px); transition: all 0.2s ease;'; btn.onmouseenter = () => btn.style.background = 'rgba(0,0,0,0.9)'; btn.onmouseleave = () => btn.style.background = 'rgba(0,0,0,0.7)'; btn.onclick = async (e) => { e.preventDefault(); e.stopPropagation(); try { if (document.pictureInPictureElement) { await document.exitPictureInPicture(); } else if (video.requestPictureInPicture) { await video.requestPictureInPicture(); } } catch (err) { console.error('PiP Error:', err); } }; player.appendChild(btn); }, 1000); })();`,
     css: ``,
     enabled: false
+  },
+  {
+    id: "youtube-adblocker-pro",
+    name: "YouTube Adblocker Pro",
+    description: "Blocks pre-roll, mid-roll, and overlay ads on YouTube, auto-skipping video ads automatically.",
+    js: `(function() {
+  const skipYoutubeAds = () => {
+    const video = document.querySelector('video.html5-main-video');
+    const adShowing = document.querySelector('.ad-showing, .ad-interrupting');
+    
+    if (adShowing && video) {
+      video.muted = true;
+      if (!isNaN(video.duration) && isFinite(video.duration)) {
+        video.currentTime = video.duration - 0.1;
+      }
+      video.playbackRate = 16.0;
+    }
+
+    const skipSelectors = [
+      '.ytp-ad-skip-button',
+      '.ytp-ad-skip-button-modern',
+      '.ytp-skip-ad-button',
+      '.ytp-skip-ad-button-modern',
+      '.ytp-ad-skip-button-slot',
+      '.ytp-ad-skip-button-container',
+      '.ytp-ad-skip-button-text'
+    ];
+    
+    for (const selector of skipSelectors) {
+      const btn = document.querySelector(selector);
+      if (btn) {
+        btn.click();
+        btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      }
+    }
+  };
+
+  setInterval(skipYoutubeAds, 500);
+})();`,
+    css: `ytd-promoted-sparkles-web-renderer,
+ytd-display-ad-renderer,
+ytd-promoted-video-renderer,
+#player-ads,
+#masthead-ad,
+.ytd-mealbar-promo-renderer,
+ytd-ad-slot-renderer,
+yt-ad-layout-renderer,
+.ytp-ad-progress-list,
+#rendering-content.ytd-ad-slot-renderer,
+#ad-companion-flash-container,
+.sparkles-light-ctas,
+#root.yt-ads-inner,
+ytd-companion-card-renderer,
+.video-ads,
+.ytp-ad-module,
+.ytp-ad-overlay-container,
+.ytp-ad-image-overlay,
+#chat-ads,
+ytd-rich-grid-video-renderer[is-ad],
+ytd-ad-slot-renderer-desktop,
+ytd-in-feed-ad-layout-renderer {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  width: 0 !important;
+  pointer-events: none !important;
+}`,
+    enabled: true,
+    isVerified: true,
+    isRemovable: false,
+    type: "verified"
   }
 ];
 

@@ -134,7 +134,7 @@ export const Extensions = () => {
   };
 
   const isVerified = (id: string) => {
-    return id === 'dark-mode' || id === 'pip-helper';
+    return id === 'dark-mode' || id === 'pip-helper' || id === 'youtube-adblocker-pro';
   };
 
   return (

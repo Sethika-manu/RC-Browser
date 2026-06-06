@@ -446,7 +446,9 @@ async fn open_webview(
                     "lijit", "revcontent", "mgid", "ads.js", "adsbygoogle", "prebid.js",
                     "/track/", "/banners/", "/adserver/", "fbevents.js", "/adframe.js",
                     "/popunder", "ad_id=", "adclient=", "clickid=", "fbclid=", "gclid=",
-                    "ad_slot=", "ad_type="
+                    "ad_slot=", "ad_type=",
+                    "youtube.com/pagead/", "youtube.com/api/stats/ads", "youtube.com/get_midroll_info",
+                    "static.doubleclick.net", "ad.doubleclick.net", "pagead2.googlesyndication.com"
                 ];
 
                 function isAdOrTracker(url) {{
@@ -477,9 +479,45 @@ async fn open_webview(
                             url = resource.toString();
                         }}
                         
-                        if (window.__privacyShieldOn && isAdOrTracker(url)) {{
-                            console.log("Blocked fetch ad/tracker request (DOM level):", url);
-                            return new Response("", {{ status: 404, statusText: "Blocked by Privacy Shield" }});
+                        if (window.__privacyShieldOn) {{
+                            if (isAdOrTracker(url)) {{
+                                console.log("Blocked fetch ad/tracker request (DOM level):", url);
+                                return new Response("", {{ status: 404, statusText: "Blocked by Privacy Shield" }});
+                            }}
+                            
+                            // YouTube specific fetch modification to strip ad settings/placements
+                            if (url.includes("youtube.com/youtubei/v1/player") || url.includes("youtube.com/youtubei/v1/next")) {{
+                                try {{
+                                    const response = await originalFetch.apply(this, arguments);
+                                    const clone = response.clone();
+                                    const json = await clone.json();
+                                    let modified = false;
+                                    
+                                    if (json.adPlacements) {{
+                                        delete json.adPlacements;
+                                        modified = true;
+                                    }}
+                                    if (json.adSlots) {{
+                                        delete json.adSlots;
+                                        modified = true;
+                                    }}
+                                    if (json.playerAds) {{
+                                        delete json.playerAds;
+                                        modified = true;
+                                    }}
+                                    
+                                    if (modified) {{
+                                        return new Response(JSON.stringify(json), {{
+                                            status: response.status,
+                                            statusText: response.statusText,
+                                            headers: response.headers
+                                        }});
+                                    }}
+                                    return response;
+                                }} catch (e) {{
+                                    // Fallback to original response on parsing error
+                                }}
+                            }}
                         }}
                         return originalFetch.apply(this, arguments);
                     }};
@@ -502,6 +540,40 @@ async fn open_webview(
                             this.dispatchEvent(new Event('error'));
                             return;
                         }}
+                        
+                        // YouTube XHR response interception for ad placements/slots
+                        const url = this.__requestUrl || "";
+                        if (window.__privacyShieldOn && (url.includes("youtube.com/youtubei/v1/player") || url.includes("youtube.com/youtubei/v1/next"))) {{
+                            const self = this;
+                            const originalOnReadyStateChange = this.onreadystatechange;
+                            
+                            const overrideResponse = () => {{
+                                if (self.readyState === 4 && self.status === 200) {{
+                                    try {{
+                                        let json = JSON.parse(self.responseText);
+                                        let modified = false;
+                                        if (json.adPlacements) {{ delete json.adPlacements; modified = true; }}
+                                        if (json.adSlots) {{ delete json.adSlots; modified = true; }}
+                                        if (json.playerAds) {{ delete json.playerAds; modified = true; }}
+                                        
+                                        if (modified) {{
+                                            const modifiedText = JSON.stringify(json);
+                                            Object.defineProperty(self, 'responseText', {{ value: modifiedText, writable: true }});
+                                            Object.defineProperty(self, 'response', {{ value: modifiedText, writable: true }});
+                                        }}
+                                    }} catch (e) {{}}
+                                }}
+                            }};
+                            
+                            this.onreadystatechange = function() {{
+                                overrideResponse();
+                                if (originalOnReadyStateChange) {{
+                                    return originalOnReadyStateChange.apply(this, arguments);
+                                }}
+                            }};
+                            this.addEventListener('readystatechange', overrideResponse);
+                        }}
+                        
                         return originalSend.apply(this, arguments);
                     }};
 
@@ -528,7 +600,7 @@ async fn open_webview(
                 }};
 
                 // --- 2. Cosmetic Hiding Styles Setup ---
-                const universalCss = '.ad-banner, .adsbygoogle, #ad-container, .taboola, .outbrain, [id^="google_ads_iframe"], [class*="-ad-"], [id*="-ad-"], .ad-slot, .ad-zone, .ad-box, .advertisement';
+                const universalCss = '.ad-banner, .adsbygoogle, #ad-container, .taboola, .outbrain, [id^="google_ads_iframe"], [class*="-ad-"], [id*="-ad-"], .ad-slot, .ad-zone, .ad-box, .advertisement, ytd-promoted-sparkles-web-renderer, ytd-display-ad-renderer, ytd-promoted-video-renderer, #player-ads, #masthead-ad, .ytd-mealbar-promo-renderer, ytd-ad-slot-renderer, yt-ad-layout-renderer, .ytp-ad-progress-list, #rendering-content.ytd-ad-slot-renderer, #ad-companion-flash-container, .sparkles-light-ctas, #root.yt-ads-inner, ytd-companion-card-renderer, .video-ads, .ytp-ad-module, .ytp-ad-overlay-container, .ytp-ad-image-overlay, #chat-ads, ytd-rich-grid-video-renderer[is-ad], ytd-ad-slot-renderer-desktop, ytd-in-feed-ad-layout-renderer';
 
                 const applyAllCosmeticHiding = () => {{
                     if (!window.__privacyShieldOn) return;
@@ -616,6 +688,47 @@ async fn open_webview(
                     }}
                 }};
 
+                // --- YouTube Video Ad Killer ---
+                const handleYoutubeAdSkipping = () => {{
+                    if (!window.__privacyShieldOn) return;
+                    if (!window.location.hostname.includes("youtube.com")) return;
+
+                    const video = document.querySelector('video.html5-main-video');
+                    const adShowing = document.querySelector('.ad-showing, .ad-interrupting');
+                    
+                    if (adShowing && video) {{
+                        // Mute the ad video first
+                        video.muted = true;
+                        
+                        // Instantly advance current time if duration is available
+                        if (!isNaN(video.duration) && isFinite(video.duration)) {{
+                            video.currentTime = video.duration - 0.1;
+                        }}
+                        
+                        // Fast forward to speed up skipped ad removal
+                        video.playbackRate = 16.0;
+                    }}
+
+                    // Click standard "Skip Ad" and "Skip Ads" buttons
+                    const skipSelectors = [
+                        '.ytp-ad-skip-button',
+                        '.ytp-ad-skip-button-modern',
+                        '.ytp-skip-ad-button',
+                        '.ytp-skip-ad-button-modern',
+                        '.ytp-ad-skip-button-slot',
+                        '.ytp-ad-skip-button-container',
+                        '.ytp-ad-skip-button-text'
+                    ];
+                    
+                    for (const selector of skipSelectors) {{
+                        const btn = document.querySelector(selector);
+                        if (btn) {{
+                            btn.click();
+                            btn.dispatchEvent(new MouseEvent('click', {{ bubbles: true, cancelable: true }}));
+                        }}
+                    }}
+                }};
+
                 // --- Passive URL & Title listener ---
                 const reportNav = async () => {{
                     try {{
@@ -636,24 +749,40 @@ async fn open_webview(
                     applyAllCosmeticHiding();
                     injectDynamicCosmeticRules();
                     reportNav();
+                    handleYoutubeAdSkipping();
 
                     const observer = new MutationObserver((mutations) => {{
                         setupInterceptors();
                         applyAllCosmeticHiding();
+                        handleYoutubeAdSkipping();
+                        
+                        // Early interception and removal of ad nodes/scripts/iframes
                         for (let i = 0; i < mutations.length; i++) {{
-                            if (mutations[i].addedNodes.length > 0) {{
-                                if (dynamicCss) {{
-                                    const selectorPart = dynamicCss.split(' {{')[0];
-                                    if (selectorPart) {{
-                                        try {{
-                                            const elements = document.querySelectorAll(selectorPart);
-                                            for (let j = 0; j < elements.length; j++) {{
-                                                elements[j].style.setProperty('display', 'none', 'important');
+                            const mutation = mutations[i];
+                            for (let j = 0; j < mutation.addedNodes.length; j++) {{
+                                const node = mutation.addedNodes[j];
+                                if (node.nodeType === Node.ELEMENT_NODE) {{
+                                    const tagName = node.tagName.toLowerCase();
+                                    if (tagName === 'script' || tagName === 'iframe' || tagName === 'embed' || tagName === 'object') {{
+                                        const src = node.src || node.getAttribute('src');
+                                        if (window.__privacyShieldOn && isAdOrTracker(src)) {{
+                                            node.src = '';
+                                            node.removeAttribute('src');
+                                            node.remove();
+                                        }}
+                                    }} else if (typeof node.querySelectorAll === 'function') {{
+                                        const adElements = node.querySelectorAll('script, iframe, embed, object');
+                                        for (let k = 0; k < adElements.length; k++) {{
+                                            const adEl = adElements[k];
+                                            const src = adEl.src || adEl.getAttribute('src');
+                                            if (window.__privacyShieldOn && isAdOrTracker(src)) {{
+                                                adEl.src = '';
+                                                adEl.removeAttribute('src');
+                                                adEl.remove();
                                             }}
-                                        }} catch(err) {{}}
+                                        }}
                                     }}
                                 }}
-                                break;
                             }}
                         }}
                     }});
@@ -662,7 +791,7 @@ async fn open_webview(
                         childList: true,
                         subtree: true,
                         attributes: true,
-                        attributeFilter: ['style', 'class', 'id']
+                        attributeFilter: ['style', 'class', 'id', 'src']
                     }});
                 }};
 
@@ -685,16 +814,19 @@ async fn open_webview(
                         originalPushState.apply(this, arguments);
                         setTimeout(injectDynamicCosmeticRules, 50);
                         setTimeout(reportNav, 50);
+                        setTimeout(handleYoutubeAdSkipping, 50);
                     }};
                     const originalReplaceState = history.replaceState;
                     history.replaceState = function() {{
                         originalReplaceState.apply(this, arguments);
                         setTimeout(injectDynamicCosmeticRules, 50);
                         setTimeout(reportNav, 50);
+                        setTimeout(handleYoutubeAdSkipping, 50);
                     }};
                     window.addEventListener('popstate', () => {{
                         setTimeout(injectDynamicCosmeticRules, 50);
                         setTimeout(reportNav, 50);
+                        setTimeout(handleYoutubeAdSkipping, 50);
                     }});
                 }};
                 try {{

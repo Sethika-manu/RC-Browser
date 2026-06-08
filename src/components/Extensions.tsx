@@ -12,6 +12,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { invoke } from "@tauri-apps/api/core";
 import { 
   Extension, 
   getExtensions, 
@@ -61,6 +62,33 @@ export const Extensions = () => {
       await syncExtensionsToRust();
       await loadExtensions();
       showToast(`${ext.name} ${updated.enabled ? 'Enabled' : 'Disabled'}`);
+
+      // Dynamic apply for Reader Mode
+      if (ext.id === 'reader-mode') {
+        const activeId = localStorage.getItem('rc_active_session');
+        if (activeId) {
+          if (updated.enabled) {
+            // Inject CSS dynamically and add active class
+            const escapedCss = updated.css.replace(/`/g, "\\`").replace(/\$/g, "\\$");
+            const js = `(function() {
+              const styleId = 'rc-extension-css-reader-mode';
+              let style = document.getElementById(styleId);
+              if (!style) {
+                style = document.createElement('style');
+                style.id = styleId;
+                style.textContent = \`${escapedCss}\`;
+                (document.head || document.documentElement).appendChild(style);
+              }
+              document.body.classList.add('rc-reader-mode-active');
+            })()`;
+            await invoke("trigger_download", { label: activeId, url: `javascript:${js}` }).catch(() => {});
+          } else {
+            // Remove active class
+            const js = `document.body.classList.remove('rc-reader-mode-active');`;
+            await invoke("trigger_download", { label: activeId, url: `javascript:${js}` }).catch(() => {});
+          }
+        }
+      }
     } catch (e) {
       console.error("Failed to toggle extension:", e);
     }
@@ -134,7 +162,7 @@ export const Extensions = () => {
   };
 
   const isVerified = (id: string) => {
-    return id === 'dark-mode' || id === 'pip-helper' || id === 'youtube-adblocker-pro';
+    return id === 'dark-mode' || id === 'pip-helper' || id === 'youtube-adblocker-pro' || id === 'reader-mode';
   };
 
   return (

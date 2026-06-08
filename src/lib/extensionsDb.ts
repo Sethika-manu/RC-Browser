@@ -13,7 +13,7 @@ export interface Extension {
 
 const DB_NAME = 'RCBrowserExtensionsDB';
 const STORE_NAME = 'browser_extensions';
-const DB_VERSION = 22; // Bump version to force upgradeneeded trigger
+const DB_VERSION = 23; // Bump version to force upgradeneeded trigger
 
 const DEFAULT_EXTENSIONS: Extension[] = [
   {
@@ -92,6 +92,65 @@ ytd-in-feed-ad-layout-renderer {
   pointer-events: none !important;
 }`,
     enabled: true,
+    isVerified: true,
+    isRemovable: false,
+    type: "verified"
+  },
+  {
+    id: "reader-mode",
+    name: "Reader Mode",
+    description: "Transforms web pages into a clean, readable layout by stripping menus, ads, headers, and footers.",
+    js: `(function() {
+  const apply = () => {
+    if (!document.body.classList.contains('rc-reader-mode-active')) {
+      document.body.classList.add('rc-reader-mode-active');
+    }
+  };
+  apply();
+  const observer = new MutationObserver(apply);
+  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+})();`,
+    css: `body.rc-reader-mode-active {
+  background-color: #fbf6ec !important;
+  color: #2c2c2c !important;
+  font-family: Georgia, Cambria, "Times New Roman", Times, serif !important;
+  line-height: 1.62 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body.rc-reader-mode-active nav,
+body.rc-reader-mode-active footer,
+body.rc-reader-mode-active aside,
+body.rc-reader-mode-active header:not(article header),
+body.rc-reader-mode-active .sidebar,
+body.rc-reader-mode-active .ad,
+body.rc-reader-mode-active .ads,
+body.rc-reader-mode-active .comments,
+body.rc-reader-mode-active #comments,
+body.rc-reader-mode-active .menu,
+body.rc-reader-mode-active #menu,
+body.rc-reader-mode-active iframe:not([src*="youtube"]) {
+  display: none !important;
+}
+
+body.rc-reader-mode-active article,
+body.rc-reader-mode-active main,
+body.rc-reader-mode-active .content,
+body.rc-reader-mode-active #content {
+  display: block !important;
+  max-width: 760px !important;
+  margin: 0 auto !important;
+  padding: 40px 20px !important;
+  background-color: #fbf6ec !important;
+}
+
+body.rc-reader-mode-active:not(:has(article)):not(:has(main)) {
+  max-width: 760px !important;
+  margin: 0 auto !important;
+  padding: 40px 20px !important;
+}`,
+    enabled: false,
     isVerified: true,
     isRemovable: false,
     type: "verified"

@@ -24,6 +24,8 @@ interface Session {
   id: string;
   title: string;
   url: string;
+  isSleeping?: boolean;
+  lastAccessed?: number;
 }
 
 interface SidebarProps {
@@ -136,16 +138,32 @@ export const Sidebar = ({
                 )}
               >
                 <div className={cn(
-                  "w-2 h-2 rounded-full flex-shrink-0",
-                  activeSessionId === session.id ? "bg-accent animate-pulse" : "bg-neutral-300 dark:bg-neutral-800"
+                  "w-2 h-2 rounded-full flex-shrink-0 transition-all duration-300",
+                  activeSessionId === session.id 
+                    ? "bg-accent animate-pulse" 
+                    : session.isSleeping 
+                      ? "bg-blue-400/40 dark:bg-blue-500/20 border border-blue-400/30" 
+                      : "bg-neutral-300 dark:bg-neutral-800"
                 )} />
                 {!isCollapsed && (
-                  <span className="text-xs font-medium truncate flex-1">
+                  <span className={cn(
+                    "text-xs font-medium truncate flex-1 transition-all duration-300",
+                    session.isSleeping 
+                      ? "text-neutral-400/50 dark:text-neutral-600/50" 
+                      : activeSessionId === session.id 
+                        ? "text-neutral-950 dark:text-white" 
+                        : "text-neutral-500 dark:text-neutral-400"
+                  )}>
                     {session.title === "about:blank" || session.title === "" 
                       ? "New Tab" 
                       : (session.title.startsWith("http://") || session.title.startsWith("https://")) 
                         ? session.title.replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0]
                         : session.title}
+                    {session.isSleeping && (
+                      <span className="text-[10px] opacity-60 ml-1.5 font-normal tracking-wide">
+                        (sleeping)
+                      </span>
+                    )}
                   </span>
                 )}
               </button>

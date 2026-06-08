@@ -34,6 +34,29 @@ export function recordSearchHistory(queryOrUrl: string) {
   }
 }
 
+export function parseBangSearch(query: string): string | null {
+  const trimmed = query.trim();
+  const match = trimmed.match(/^!(yt|gh|w|g)(?:\s+(.*))?$/i);
+  if (!match) return null;
+  
+  const bang = match[1].toLowerCase();
+  const searchPart = match[2] ? match[2].trim() : "";
+  const encodedQuery = encodeURIComponent(searchPart);
+  
+  switch (bang) {
+    case "yt":
+      return `https://www.youtube.com/results?search_query=${encodedQuery}`;
+    case "gh":
+      return `https://github.com/search?q=${encodedQuery}`;
+    case "w":
+      return `https://en.wikipedia.org/wiki/Special:Search?search=${encodedQuery}`;
+    case "g":
+      return `https://www.google.com/search?q=${encodedQuery}`;
+    default:
+      return null;
+  }
+}
+
 interface TitleBarProps {
   onNavigate?: (url: string) => void;
   searchValue: string;
@@ -277,7 +300,8 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
     
     recordSearchHistory(queryOrUrl);
     if (onNavigate) {
-      onNavigate(queryOrUrl);
+      const parsedUrl = parseBangSearch(queryOrUrl);
+      onNavigate(parsedUrl || queryOrUrl);
     }
   };
 
@@ -334,7 +358,8 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
     if (query) {
       recordSearchHistory(query);
       if (onNavigate) {
-        onNavigate(query);
+        const parsedUrl = parseBangSearch(query);
+        onNavigate(parsedUrl || query);
       }
     }
   };

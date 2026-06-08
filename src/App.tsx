@@ -44,6 +44,8 @@ interface Session {
   id: string;
   title: string;
   url: string;
+  isSleeping?: boolean;
+  lastAccessed?: number;
 }
 
 const getFileName = (path: string, url: string) => {
@@ -74,7 +76,13 @@ export default function App() {
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map(s => ({
+              ...s,
+              isSleeping: s.isSleeping ?? false,
+              lastAccessed: s.lastAccessed ?? Date.now()
+            }));
+          }
         } catch (e) {
           console.error("Failed to parse saved sessions");
         }
@@ -397,12 +405,51 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (activeSession) {
+    if (activeSessionId) {
       setSearchValue((activeSession.url === "about:blank" || activeSession.url === "") ? "" : activeSession.url);
     } else {
       setSearchValue("");
     }
   }, [activeSessionId, activeSession?.url, appView]);
+
+  // 1. Wake up the active tab when selected, and update its lastAccessed timestamp
+  useEffect(() => {
+    if (activeSessionId) {
+      setSessions(prev =>
+        prev.map(s =>
+          s.id === activeSessionId
+            ? { ...s, isSleeping: false, lastAccessed: Date.now() }
+            : s
+        )
+      );
+    }
+  }, [activeSessionId]);
+
+  // 2. Periodic background check to sleep inactive tabs (PC Only)
+  useEffect(() => {
+    if (isMobile) return;
+
+    const interval = setInterval(() => {
+      // Inactivity threshold: 15 minutes (900,000 ms)
+      const threshold = 900000;
+      const now = Date.now();
+      
+      setSessions(prev => {
+        let changed = false;
+        const nextSessions = prev.map(s => {
+          const lastAcc = s.lastAccessed || now;
+          if (s.id !== activeSessionId && !s.isSleeping && (now - lastAcc) > threshold) {
+            changed = true;
+            return { ...s, isSleeping: true };
+          }
+          return s;
+        });
+        return changed ? nextSessions : prev;
+      });
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [isMobile, activeSessionId]);
 
   const handleNavigate = async (url: string) => {
     let targetUrl = url.trim();
@@ -448,7 +495,9 @@ export default function App() {
     const newSession: Session = {
       id: Math.random().toString(36).substring(7),
       title: (url === "" || url === "about:blank") ? "New Tab" : url,
-      url: url
+      url: url,
+      isSleeping: false,
+      lastAccessed: Date.now()
     };
     setSessions(prev => [...prev, newSession]);
     setActiveSessionId(newSession.id);
@@ -682,9 +731,24 @@ export default function App() {
                     ) : (
                       <div className="grid grid-cols-2 gap-4 pointer-events-auto">
                         {sessions.map(session => (
-                          <div key={session.id} onClick={() => { setActiveSessionId(session.id); setAppView('browser'); }} className={`relative p-4 rounded-2xl flex flex-col gap-2 cursor-pointer transition-all ${activeSessionId === session.id ? 'bg-white dark:bg-neutral-900 border-2 border-accent shadow-md' : 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm'} pointer-events-auto`}>
+                          <div 
+                            key={session.id} 
+                            onClick={() => { setActiveSessionId(session.id); setAppView('browser'); }} 
+                            className={`relative p-4 rounded-2xl flex flex-col gap-2 cursor-pointer transition-all ${
+                              activeSessionId === session.id 
+                                ? 'bg-white dark:bg-neutral-900 border-2 border-accent shadow-md' 
+                                : 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm'
+                            } ${session.isSleeping ? 'opacity-65 hover:opacity-90' : ''} pointer-events-auto`}
+                          >
                             <div className="flex justify-between items-start pointer-events-auto">
-                              <span className="text-sm font-semibold text-neutral-900 dark:text-white truncate pr-6 pointer-events-auto">{session.title || 'New Tab'}</span>
+                              <span className="text-sm font-semibold text-neutral-900 dark:text-white truncate pr-6 pointer-events-auto">
+                                {session.title || 'New Tab'}
+                                {session.isSleeping && (
+                                  <span className="ml-2 text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md">
+                                    Sleeping
+                                  </span>
+                                )}
+                              </span>
                               <button onClick={(e) => { e.stopPropagation(); handleCloseSession(session.id); }} className="absolute top-3 right-3 text-neutral-400 hover:text-red-500 bg-neutral-100 dark:bg-neutral-800 rounded-full p-1 shadow-sm transition-colors pointer-events-auto">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-auto"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                               </button>

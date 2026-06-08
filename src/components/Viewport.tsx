@@ -6,6 +6,8 @@ interface Session {
   id: string;
   title: string;
   url: string;
+  isSleeping?: boolean;
+  lastAccessed?: number;
 }
 
 export const Viewport = ({
@@ -79,8 +81,8 @@ export const Viewport = ({
         // Manage Lifecycle (Open/Close)
         for (const session of sessions) {
           const hasBeenInitialized = initializedWebviews.current.has(session.id);
-          if (session.url === "") {
-            // Keep the WebView alive to preserve the native history stack; do not close or delete it!
+          if (session.url === "" || session.isSleeping) {
+            // Keep the WebView alive to preserve the native history stack; do not close or delete it unless sleeping
             continue;
           }
 
@@ -108,10 +110,10 @@ export const Viewport = ({
           }
         }
 
-        // Cleanup orphaned sessions
-        const currentIds = new Set(sessions.map(s => s.id));
+        // Cleanup orphaned or sleeping sessions
+        const activeOrNonSleepingIds = new Set(sessions.filter(s => !s.isSleeping).map(s => s.id));
         for (const id of Array.from(initializedWebviews.current)) {
-          if (!currentIds.has(id)) {
+          if (!activeOrNonSleepingIds.has(id)) {
             await invoke("close_webview", { label: id }).catch((e) => console.warn("Cleanup Error:", e));
             initializedWebviews.current.delete(id);
           }

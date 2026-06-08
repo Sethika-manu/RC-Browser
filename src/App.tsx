@@ -13,7 +13,7 @@ import { Downloads } from "./components/Downloads";
 import { History } from "./components/History";
 import { Extensions } from "./components/Extensions";
 import { Bookmarks } from "./components/Bookmarks";
-import { syncExtensionsToRust } from "./lib/extensionsDb"; //all done
+import { syncExtensionsToRust } from "./lib/extensionsDb"; //all
 
 
 // Lucide Icons

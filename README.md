@@ -28,3 +28,4 @@ To run this project locally on your machine:
 2. Clone the repository:
 ```bash
    git clone [https://github.com/Sethika-manu/RC-Browser.git](https://github.com/Sethika-manu/RC-Browser.git)
+

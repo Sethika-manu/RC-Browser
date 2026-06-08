@@ -6,13 +6,13 @@ Welcome to the official repository of **RC Browser** — a next-generation, high
 
 Unlike standard browsers, RC Browser comes packed with built-in functionalities that eliminate the need for heavy, third-party extensions:
 
-*  🛡️ **Built-in Adblocker Pro:** Enjoy a cleaner, faster, and ad-free web experience right out of the box.
-*  💤 **Smart Memory Saver:** Automatically unloads inactive background tabs to drastically reduce RAM usage, while keeping your workspace visually intact.
-*  📖 **Reader Mode:** Instantly strip away clutter, sidebars, and distractions for a clean, typography-focused reading environment.
-*  🔍 **Custom Search Bangs:** Navigate the web at lightning speed using quick shortcuts (e.g., `!yt` for YouTube, `!gh` for GitHub).
-*  🔊 **Premium UI Audio Feedback:** Features a sophisticated, professional voice/sound assistant that provides elegant audio cues for specific browser actions (like clearing cache or toggling extensions).
-*  🖼️ **Video PiP Helper:** Seamlessly watch videos in Picture-in-Picture mode while multitasking.
-*  🔒 **Session Persistence & Secure Routing:** Advanced state management ensures your tabs and data are saved perfectly across sessions, with secure native handling for portal redirects and new windows.
+* 🛡️ **Built-in Adblocker Pro:** Enjoy a cleaner, faster, and ad-free web experience right out of the box.
+* 💤 **Smart Memory Saver:** Automatically unloads inactive background tabs to drastically reduce RAM usage, while keeping your workspace visually intact.
+* 📖 **Reader Mode:** Instantly strip away clutter, sidebars, and distractions for a clean, typography-focused reading environment.
+* 🔍 **Custom Search Bangs:** Navigate the web at lightning speed using quick shortcuts (e.g., `!yt` for YouTube, `!gh` for GitHub).
+* 🔊 **Premium UI Audio Feedback:** Features a sophisticated, professional voice/sound assistant that provides elegant audio cues for specific browser actions (like clearing cache or toggling extensions).
+* 🖼️ **Video PiP Helper:** Seamlessly watch videos in Picture-in-Picture mode while multitasking.
+* 🔒 **Session Persistence & Secure Routing:** Advanced state management ensures your tabs and data are saved perfectly across sessions, with secure native handling for portal redirects and new windows.
 
 ## 🛠️ Tech Stack
 

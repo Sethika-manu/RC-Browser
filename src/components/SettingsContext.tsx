@@ -14,6 +14,9 @@ interface SettingsContextType {
   setPrivacyShield: (enabled: boolean) => void;
   autoHideSidebar: boolean;
   setAutoHideSidebar: (enabled: boolean) => void;
+  enableVoiceAssist: boolean;
+  setEnableVoiceAssist: (enabled: boolean) => void;
+  playVoiceAssist: (url: string) => void;
   t: (key: string) => string;
 }
 
@@ -165,6 +168,30 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('app-auto-hide-sidebar', String(autoHideSidebar));
   }, [autoHideSidebar]);
 
+  // NEW: Voice Assist settings state
+  const [enableVoiceAssist, setEnableVoiceAssist] = useState<boolean>(() => 
+    localStorage.getItem('app-enable-voice-assist') === 'true'
+  );
+
+  useEffect(() => {
+    localStorage.setItem('app-enable-voice-assist', String(enableVoiceAssist));
+  }, [enableVoiceAssist]);
+
+  // Voice Assist playback utility
+  const playVoiceAssist = (url: string) => {
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobileDevice) return;
+    if (!enableVoiceAssist) return;
+    try {
+      const audio = new Audio(url);
+      audio.play().catch((err) => {
+        console.warn("Failed to play audio:", err);
+      });
+    } catch (err) {
+      console.warn("Failed to instantiate audio:", err);
+    }
+  };
+
   const t = (key: string) => {
     return translations[language][key] || key;
   };
@@ -175,6 +202,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       language, setLanguage, 
       privacyShield, setPrivacyShield,
       autoHideSidebar, setAutoHideSidebar,
+      enableVoiceAssist, setEnableVoiceAssist,
+      playVoiceAssist,
       t 
     }}>
       {children}

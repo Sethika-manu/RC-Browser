@@ -10,7 +10,8 @@ import {
   ChevronRight,
   Settings as SettingsIcon,
   Check,
-  RefreshCw
+  RefreshCw,
+  Volume2
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useSettings } from "./SettingsContext";
@@ -42,6 +43,11 @@ const TRANSLATIONS: Record<Language, any> = {
     sidebar_desc: 'Auto-hide sidebar when not in use',
     auto_update: 'Enable Auto-Updates',
     auto_update_desc: 'Automatically download and install new updates in the background.',
+    accessibility: 'Accessibility',
+    voice_assist: 'Enable Voice Assistant',
+    voice_assist_desc: 'Enable sound effects for specific UI actions',
+    clear_cache: 'Clear Cache',
+    clear_cache_desc: 'Clear cached assets and temporary web files',
   },
   'Sinhala (LK)': {
     title: 'සැකසුම්',
@@ -64,6 +70,11 @@ const TRANSLATIONS: Record<Language, any> = {
     sidebar_desc: 'පැති තීරුව ස්වයංක්‍රීයව සඟවන්න',
     auto_update: 'ස්වයංක්‍රීය යාවත්කාලීන සක්‍රීය කරන්න',
     auto_update_desc: 'පසුබිමින් නව යාවත්කාලීන ස්වයංක්‍රීයව බාගත කර ස්ථාපනය කරන්න.',
+    accessibility: 'ප්‍රවේශ්‍යතාව',
+    voice_assist: 'හඬ සහායක සක්‍රීය කරන්න',
+    voice_assist_desc: 'නිශ්චිත ක්‍රියා සඳහා ශබ්ද ප්‍රයෝග සක්‍රීය කරන්න',
+    clear_cache: 'මතකය මකන්න (Clear Cache)',
+    clear_cache_desc: 'තාවකාලික ගොනු සහ වෙබ් මතකය මකන්න',
   },
   'Singlish': {
     title: 'Settings kalla',
@@ -86,6 +97,11 @@ const TRANSLATIONS: Record<Language, any> = {
     sidebar_desc: 'Sidebar eka hanganna',
     auto_update: 'Auto-Updates on කරන්න',
     auto_update_desc: 'පසුබිමෙන් auto ම download කරලා update install කරන්න.',
+    accessibility: 'Accessibility',
+    voice_assist: 'Voice Assistant on කරන්න',
+    voice_assist_desc: 'UI actions walata sound effects on කරන්න',
+    clear_cache: 'Cache memory eka makanna',
+    clear_cache_desc: 'Cached files okoma ain karala danna',
   }
 };
 
@@ -111,7 +127,9 @@ export const Settings = () => {
     theme, setTheme, 
     language, setLanguage, 
     privacyShield, setPrivacyShield,
-    autoHideSidebar, setAutoHideSidebar // Extracted from context
+    autoHideSidebar, setAutoHideSidebar,
+    enableVoiceAssist, setEnableVoiceAssist,
+    playVoiceAssist
   } = useSettings();
 
   const [appVersion, setAppVersion] = useState("0.1.0");
@@ -173,9 +191,26 @@ export const Settings = () => {
         localStorage.removeItem('siteHistory');
         localStorage.removeItem('app_browser_history');
         window.dispatchEvent(new Event('browsing-data-cleared'));
+        playVoiceAssist('/sounds/data-delete.mp3');
         alert("Browsing data cleared successfully!");
       } catch (err) {
         console.error("Failed to clear browsing data:", err);
+      }
+    }
+  };
+
+  const handleClearCache = async () => {
+    const confirmClear = window.confirm("Are you sure you want to clear the browser cache?");
+    if (confirmClear) {
+      try {
+        if ('caches' in window) {
+          const keys = await window.caches.keys();
+          await Promise.all(keys.map(key => window.caches.delete(key)));
+        }
+        playVoiceAssist('/sounds/cache-clear.mp3');
+        alert("Cache cleared successfully!");
+      } catch (err) {
+        console.error("Failed to clear cache:", err);
       }
     }
   };
@@ -186,6 +221,7 @@ export const Settings = () => {
       try {
         const { clearSearchSuggestionsOnly } = await import("../lib/historyDb");
         await clearSearchSuggestionsOnly();
+        playVoiceAssist('/sounds/history-clear.mp3');
         alert("Search suggestions cleared successfully!");
       } catch (err) {
         console.error("Failed to clear search suggestions:", err);
@@ -256,10 +292,30 @@ export const Settings = () => {
         },
         { 
           icon: <Check size={18} />, 
+          label: t.clear_cache, 
+          description: t.clear_cache_desc, 
+          action: true,
+          onClick: handleClearCache
+        },
+        { 
+          icon: <Check size={18} />, 
           label: t.clear_suggestions, 
           description: t.clear_suggestions_desc, 
           action: true,
           onClick: handleClearSearchSuggestions
+        }
+      ]
+    },
+    {
+      title: t.accessibility,
+      items: [
+        {
+          icon: <Volume2 size={18} />,
+          label: t.voice_assist,
+          description: t.voice_assist_desc,
+          toggle: true,
+          checked: enableVoiceAssist,
+          onClick: () => setEnableVoiceAssist(!enableVoiceAssist)
         }
       ]
     },

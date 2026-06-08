@@ -20,8 +20,10 @@ import {
   deleteExtension, 
   syncExtensionsToRust 
 } from "../lib/extensionsDb";
+import { useSettings } from "./SettingsContext";
 
 export const Extensions = () => {
+  const { playVoiceAssist } = useSettings();
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [editingExtension, setEditingExtension] = useState<Extension | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -62,6 +64,10 @@ export const Extensions = () => {
       await syncExtensionsToRust();
       await loadExtensions();
       showToast(`${ext.name} ${updated.enabled ? 'Enabled' : 'Disabled'}`);
+
+      if (updated.enabled) {
+        playVoiceAssist('/sounds/ext-on.mp3');
+      }
 
       // Dynamic apply for Reader Mode
       if (ext.id === 'reader-mode') {

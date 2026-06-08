@@ -166,6 +166,13 @@ export default function App() {
       }
     });
 
+    const unlistenNewTabPromise = listen('open-new-tab', (event: any) => {
+      const payload = event.payload;
+      if (payload && payload.url) {
+        handleCreateSession(payload.url);
+      }
+    });
+
     const unlistenUrlPromise = listen('webview-url-changed', (event: any) => {
       const { label, url, title } = event.payload;
       
@@ -231,6 +238,7 @@ export default function App() {
       unlistenPromise.then(unlisten => unlisten());
       unlistenUrlPromise.then(unlisten => unlisten());
       unlistenTitlePromise.then(unlisten => unlisten());
+      unlistenNewTabPromise.then(unlisten => unlisten());
       window.removeEventListener('rc-download-finished', handleHistoryUpdate);
       window.removeEventListener('rc-recreate-active-webview', handleRecreateWebview);
     };
@@ -405,7 +413,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (activeSessionId) {
+    if (activeSession) {
       setSearchValue((activeSession.url === "about:blank" || activeSession.url === "") ? "" : activeSession.url);
     } else {
       setSearchValue("");

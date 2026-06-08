@@ -322,6 +322,15 @@ async fn open_webview(
         let mut webview_builder =
             WebviewBuilder::new(&label, tauri::WebviewUrl::External(url_data));
 
+        let app_handle_for_new_window = app.clone();
+        webview_builder = webview_builder.on_new_window(move |url, _features| {
+            let url_str = url.as_str().to_string();
+            let _ = app_handle_for_new_window.emit("open-new-tab", serde_json::json!({
+                "url": url_str
+            }));
+            tauri::webview::NewWindowResponse::Deny
+        });
+
         #[cfg(not(target_os = "android"))]
         {
             // Set a persistent data directory for webviews to save cookies, local storage, and active sessions

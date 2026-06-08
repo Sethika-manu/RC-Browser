@@ -4,7 +4,6 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSettings } from "./SettingsContext";
 import { 
   Globe, 
-  Terminal, 
   Layout, 
   Settings, 
   ChevronLeft, 
@@ -12,7 +11,10 @@ import {
   Plus,
   Search,
   X,
-  Download
+  Download,
+  History as HistoryIcon,
+  Puzzle,
+  Star
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -22,20 +24,24 @@ interface Session {
   id: string;
   title: string;
   url: string;
+  isSleeping?: boolean;
+  lastAccessed?: number;
 }
 
 interface SidebarProps {
   sessions: Session[];
   activeSessionId: string | null;
-  activeView: 'browser' | 'settings' | 'console' | 'downloads' | 'tabs';
+  activeView: 'browser' | 'settings' | 'downloads' | 'tabs' | 'history' | 'extensions' | 'bookmarks';
   onSessionSelect: (id: string) => void;
   onSessionClose: (id: string) => void;
   onNewSession: () => void;
   onHomeClick: () => void;
   onSearchClick: () => void;
   onSettingsClick: () => void;
-  onConsoleClick: () => void;
   onDownloadsClick: () => void;
+  onHistoryClick: () => void;
+  onExtensionsClick: () => void;
+  onBookmarksClick: () => void;
   isDownloading: boolean;
 }
 
@@ -49,11 +55,15 @@ export const Sidebar = ({
   onHomeClick,
   onSearchClick,
   onSettingsClick,
-  onConsoleClick,
   onDownloadsClick,
+  onHistoryClick,
+  onExtensionsClick,
+  onBookmarksClick,
   isDownloading
 }: SidebarProps) => {
   const { t, autoHideSidebar } = useSettings(); // Extract autoHideSidebar
+  
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   
   // Manual toggle state
   const [isManualCollapsed, setIsManualCollapsed] = useState(false);
@@ -95,7 +105,7 @@ export const Sidebar = ({
             onClick={onHomeClick}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            {t('nav_projects')}
+            {t('nav_home')}
           </span>
         )}
         <button
@@ -128,12 +138,32 @@ export const Sidebar = ({
                 )}
               >
                 <div className={cn(
-                  "w-2 h-2 rounded-full flex-shrink-0",
-                  activeSessionId === session.id ? "bg-accent animate-pulse" : "bg-neutral-300 dark:bg-neutral-800"
+                  "w-2 h-2 rounded-full flex-shrink-0 transition-all duration-300",
+                  activeSessionId === session.id 
+                    ? "bg-accent animate-pulse" 
+                    : session.isSleeping 
+                      ? "bg-blue-400/40 dark:bg-blue-500/20 border border-blue-400/30" 
+                      : "bg-neutral-300 dark:bg-neutral-800"
                 )} />
                 {!isCollapsed && (
-                  <span className="text-xs font-medium truncate flex-1">
-                    {session.url === "about:blank" ? "New Tab" : session.url.replace("https://", "").replace("www.", "").split("/")[0]}
+                  <span className={cn(
+                    "text-xs font-medium truncate flex-1 transition-all duration-300",
+                    session.isSleeping 
+                      ? "text-neutral-400/50 dark:text-neutral-600/50" 
+                      : activeSessionId === session.id 
+                        ? "text-neutral-950 dark:text-white" 
+                        : "text-neutral-500 dark:text-neutral-400"
+                  )}>
+                    {session.title === "about:blank" || session.title === "" 
+                      ? "New Tab" 
+                      : (session.title.startsWith("http://") || session.title.startsWith("https://")) 
+                        ? session.title.replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0]
+                        : session.title}
+                    {session.isSleeping && (
+                      <span className="text-[10px] opacity-60 ml-1.5 font-normal tracking-wide">
+                        (sleeping)
+                      </span>
+                    )}
                   </span>
                 )}
               </button>
@@ -176,17 +206,45 @@ export const Sidebar = ({
           </button>
 
           <button 
-            onClick={onConsoleClick}
+            onClick={onBookmarksClick}
             className={cn(
               "w-full flex items-center gap-3 p-2.5 rounded-lg transition-all whitespace-nowrap",
-              activeView === 'console'
-                ? "bg-blue-500/10 text-blue-500 shadow-sm shadow-blue-500/5 border border-blue-500/20"
+              activeView === 'bookmarks'
+                ? "bg-neutral-100 dark:bg-white/5 text-neutral-900 dark:text-white shadow-sm"
                 : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.02]"
             )}
           >
-            <div className="flex-shrink-0"><Terminal size={16} className={cn(activeView === 'console' && "drop-shadow-[0_0_5px_rgba(59,130,246,0.5)]")} /></div>
-            {!isCollapsed && <span className="text-xs font-medium">{t('nav_console')}</span>}
+            <div className="flex-shrink-0"><Star size={16} /></div>
+            {!isCollapsed && <span className="text-xs font-medium">Bookmarks</span>}
           </button>
+
+          <button 
+            onClick={onHistoryClick}
+            className={cn(
+              "w-full flex items-center gap-3 p-2.5 rounded-lg transition-all whitespace-nowrap",
+              activeView === 'history'
+                ? "bg-neutral-100 dark:bg-white/5 text-neutral-900 dark:text-white shadow-sm"
+                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.02]"
+            )}
+          >
+            <div className="flex-shrink-0"><HistoryIcon size={16} /></div>
+            {!isCollapsed && <span className="text-xs font-medium">{t('nav_history')}</span>}
+          </button>
+
+          {!isMobile && (
+            <button 
+              onClick={onExtensionsClick}
+              className={cn(
+                "w-full flex items-center gap-3 p-2.5 rounded-lg transition-all whitespace-nowrap",
+                activeView === 'extensions'
+                  ? "bg-neutral-100 dark:bg-white/5 text-neutral-900 dark:text-white shadow-sm"
+                  : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.02]"
+              )}
+            >
+              <div className="flex-shrink-0"><Puzzle size={16} /></div>
+              {!isCollapsed && <span className="text-xs font-medium">Extensions</span>}
+            </button>
+          )}
 
           <button 
             onClick={onSettingsClick}

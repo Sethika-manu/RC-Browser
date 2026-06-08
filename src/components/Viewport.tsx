@@ -1,39 +1,44 @@
-import { useRef, useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { cn } from "../lib/utils";
+import { useSettings } from "./SettingsContext";
 
 interface Session {
   id: string;
   title: string;
   url: string;
+  isSleeping?: boolean;
+  lastAccessed?: number;
 }
 
-export const Viewport = ({ 
-  sessions, 
-  activeSessionId, 
+export const Viewport = ({
+  sessions,
+  activeSessionId,
   isPaletteOpen,
   appView
-}: { 
-  sessions: Session[], 
+}: {
+  sessions: Session[],
   activeSessionId: string | null,
   isPaletteOpen: boolean,
-  appView: 'browser' | 'settings' | 'console' | 'downloads' | 'tabs'
+  appView: 'browser' | 'settings' | 'console' | 'downloads' | 'tabs' | 'history' | 'extensions' | 'bookmarks'
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const initializedWebviews = useRef<Set<string>>(new Set());
+  const { theme } = useSettings();
+  const isDarkMode = theme === 'System'
+    ? window.matchMedia('(prefers-color-scheme: dark)').matches
+    : theme === 'Dark';
 
-  const activeSession = sessions.find(s => s.id === activeSessionId);
-  const showLoading = activeSession && activeSession.url !== "" && !initializedWebviews.current.has(activeSessionId!);
+  const isMobileLayout = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
 
-  // NEW: Detect theme changes and push to Native Webviews
+  // 1. Sync theme across all active webviews
   useEffect(() => {
+    if (isMobileLayout) return;
+
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.attributeName === 'class') {
           const isDark = document.documentElement.classList.contains('dark');
           const theme = isDark ? 'dark' : 'light';
-          
-          // Inject the new theme into every open session immediately
           sessions.forEach(session => {
             invoke('set_webview_theme', { label: session.id, theme })
               .catch((e) => console.warn("Theme Sync Error:", e));
@@ -41,87 +46,82 @@ export const Viewport = ({
         }
       });
     });
-
     observer.observe(document.documentElement, { attributes: true });
     return () => observer.disconnect();
   }, [sessions]);
 
-  // 1. Manage Lifecycle (Open/Close only)
+  // 2. Lifecycle management and pixel-perfect physical bounds syncing (Universal - PC only)
   useEffect(() => {
-    const manageLifecycle = async () => {
-      try {
-        if (!containerRef.current) return;
-        const rect = containerRef.current.getBoundingClientRect();
+    if (isMobileLayout) return;
 
+    let isProcessing = false;
+
+    const syncWebviews = async () => {
+      if (isProcessing) return;
+      isProcessing = true;
+      try {
+        if (!containerRef.current) {
+          isProcessing = false;
+          return;
+        }
+
+        const scale = window.devicePixelRatio || 1.0;
+        const rect = containerRef.current.getBoundingClientRect();
+        
+        const physX = Math.round(rect.x * scale);
+        const physY = Math.round(rect.y * scale);
+        const physWidth = Math.round(rect.width * scale);
+        const physHeight = Math.round(rect.height * scale);
+
+        if (physWidth <= 0 || physHeight <= 0) {
+          isProcessing = false;
+          return;
+        }
+
+        // Manage Lifecycle (Open/Close)
         for (const session of sessions) {
           const hasBeenInitialized = initializedWebviews.current.has(session.id);
-
-          if (session.url === "") {
-            if (hasBeenInitialized) {
-              await invoke("close_webview", { label: session.id }).catch((e) => console.warn("Close Error:", e));
-              initializedWebviews.current.delete(session.id);
-            }
+          if (session.url === "" || session.isSleeping) {
+            // Keep the WebView alive to preserve the native history stack; do not close or delete it unless sleeping
             continue;
           }
 
           if (!hasBeenInitialized) {
-            let targetUrl = session.url;
+            let targetUrl = session.url.trim();
             const isUrl = targetUrl.includes(".") && !targetUrl.includes(" ");
             if (!targetUrl.startsWith("http") && isUrl) targetUrl = `https://${targetUrl}`;
-            if (!isUrl) targetUrl = `https://google.com/search?q=${encodeURIComponent(targetUrl)}`;
-
-            // Get current app theme for initial load
+            if (!isUrl) targetUrl = `https://www.google.com/search?q=${encodeURIComponent(targetUrl)}`;
             const currentTheme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
 
             try {
               await invoke("open_webview", {
                 label: session.id,
                 url: targetUrl,
-                x: rect.x,
-                y: rect.y,
-                width: rect.width,
-                height: rect.height,
-                theme: currentTheme, // NEW: Send theme on startup
-              }).catch((e) => console.warn("Open Error:", e));
+                x: physX,
+                y: physY,
+                width: physWidth,
+                height: physHeight,
+                theme: currentTheme,
+              });
               initializedWebviews.current.add(session.id);
-            } catch (e) {}
+            } catch (e) {
+              console.warn("Open Error:", e);
+            }
           }
         }
 
-        // CLEANUP: Close webviews for sessions that no longer exist
-        const currentIds = new Set(sessions.map(s => s.id));
+        // Cleanup orphaned or sleeping sessions
+        const activeOrNonSleepingIds = new Set(sessions.filter(s => !s.isSleeping).map(s => s.id));
         for (const id of Array.from(initializedWebviews.current)) {
-          if (!currentIds.has(id)) {
+          if (!activeOrNonSleepingIds.has(id)) {
             await invoke("close_webview", { label: id }).catch((e) => console.warn("Cleanup Error:", e));
             initializedWebviews.current.delete(id);
           }
         }
-      } catch (err) {
-        console.error("Critical Native Lifecycle Error:", err);
-      }
-    };
 
-    manageLifecycle();
-  }, [sessions]);
-
-  // 2. Absolute Failsafe Bounds Sync with ResizeObserver
-  useEffect(() => {
-    let frameId: number;
-    let isSyncing = false;
-
-    const syncBounds = async () => {
-      if (isSyncing) return;
-      isSyncing = true;
-      
-      try {
-        if (!containerRef.current) {
-          isSyncing = false;
-          return;
-        }
-        
-        const rect = containerRef.current.getBoundingClientRect();
-
-        if (appView === 'settings' || appView === 'console' || appView === 'downloads' || appView === 'tabs') {
+        // Sync Bounds & Visibility
+        const isOverlayVisible = appView === 'settings' || appView === 'console' || appView === 'downloads' || appView === 'tabs' || appView === 'history' || appView === 'extensions' || appView === 'bookmarks';
+        if (isOverlayVisible) {
           for (const label of initializedWebviews.current) {
             await invoke("set_webview_bounds", { 
               label, 
@@ -131,47 +131,42 @@ export const Viewport = ({
               height: 100 
             }).catch((e) => console.warn("Hide Error:", e));
           }
-          isSyncing = false;
+          isProcessing = false;
           return;
         }
 
         for (const session of sessions) {
-          const isCurrentlyActive = session.id === activeSessionId && !isPaletteOpen && appView === 'browser';
-          
-          if (isCurrentlyActive) {
-            if (rect.width === 0 || rect.height === 0) {
-              isSyncing = false;
-              frameId = requestAnimationFrame(syncBounds);
-              return;
+          const isCurrentlyActive = session.id === activeSessionId && !isPaletteOpen && appView === 'browser' && session.url !== "";
+          if (initializedWebviews.current.has(session.id)) {
+            if (isCurrentlyActive) {
+              await invoke("set_webview_bounds", {
+                label: session.id,
+                x: physX,
+                y: physY,
+                width: physWidth,
+                height: physHeight,
+              }).catch((e) => console.warn("Bounds Sync Error:", e));
+            } else {
+              // Hide inactive session webview
+              await invoke("set_webview_bounds", {
+                label: session.id,
+                x: -10000,
+                y: -10000,
+                width: 100,
+                height: 100,
+              }).catch((e) => console.warn("Background Hide Error:", e));
             }
-
-            await invoke("set_webview_bounds", {
-              label: session.id,
-              x: rect.x,
-              y: rect.y,
-              width: rect.width,
-              height: rect.height,
-            }).catch((e) => console.warn("Bounds Sync Error:", e));
-          } else {
-            await invoke("set_webview_bounds", {
-              label: session.id,
-              x: -10000,
-              y: -10000,
-              width: 100,
-              height: 100,
-            }).catch((e) => console.warn("Background Hide Error:", e));
           }
         }
       } catch (err) {
         console.error("Critical Native Sync Error:", err);
       }
-      
-      isSyncing = false;
+      isProcessing = false;
     };
 
     const observer = new ResizeObserver((entries) => {
       if (entries.length > 0) {
-        syncBounds();
+        syncWebviews();
       }
     });
 
@@ -179,27 +174,31 @@ export const Viewport = ({
       observer.observe(containerRef.current);
     }
 
-    syncBounds();
+    syncWebviews();
 
     return () => {
       observer.disconnect();
-      if (frameId) cancelAnimationFrame(frameId);
     };
   }, [sessions, activeSessionId, isPaletteOpen, appView]);
 
+
+
+  // Clean up native webviews when component unmounts (PC only)
+  useEffect(() => {
+    return () => {
+      if (!isMobileLayout) {
+        initializedWebviews.current.forEach(label => {
+          invoke("close_webview", { label }).catch((e) => console.warn("Unmount Close Error:", e));
+        });
+      }
+    };
+  }, []);
+
   return (
     <div 
-      ref={containerRef}
-      className="absolute inset-0 bg-transparent flex items-center justify-center pointer-events-none z-0"
-    >
-      {showLoading && (
-        <div className="flex flex-col items-center gap-4 text-neutral-800 dark:text-neutral-200 pointer-events-auto">
-          <div className="w-8 h-8 border-2 border-neutral-200 dark:border-white/5 border-t-accent rounded-full animate-spin" />
-          <p className="text-[10px] font-mono uppercase tracking-[0.2em]">
-            Initializing...
-          </p>
-        </div>
-      )}
-    </div>
+      ref={containerRef} 
+      className="absolute inset-0 bg-transparent flex items-center justify-center pointer-events-none z-0" 
+      style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+    />
   );
 };

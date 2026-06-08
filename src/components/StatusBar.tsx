@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Cpu, MemoryStick, Wifi, Zap } from "lucide-react";
 
@@ -8,7 +8,7 @@ interface Metrics {
   ping: number;
 }
 
-export const StatusBar = () => {
+export const StatusBar = memo(() => {
   const [metrics, setMetrics] = useState<Metrics>({
     cpu: 0,
     ram: 0,
@@ -16,6 +16,9 @@ export const StatusBar = () => {
   });
 
   useEffect(() => {
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) return;
+
     const fetchMetrics = async () => {
       try {
         const data = await invoke<Metrics>("get_system_metrics");
@@ -31,7 +34,7 @@ export const StatusBar = () => {
   }, []);
 
   return (
-    <div className="h-8 bg-background border-t border-border flex items-center justify-between px-4 select-none">
+    <div className="h-8 bg-background border-t border-border flex items-center justify-between px-4 select-none status-bar-container">
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-2 group cursor-help">
           <Cpu size={16} className="text-accent" />
@@ -55,4 +58,7 @@ export const StatusBar = () => {
       </div>
     </div>
   );
-};
+});
+
+StatusBar.displayName = "StatusBar";
+

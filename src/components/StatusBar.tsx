@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Cpu, MemoryStick, Wifi, Zap } from "lucide-react";
 
@@ -8,7 +8,7 @@ interface Metrics {
   ping: number;
 }
 
-export const StatusBar = () => {
+export const StatusBar = memo(() => {
   const [metrics, setMetrics] = useState<Metrics>({
     cpu: 0,
     ram: 0,
@@ -58,4 +58,7 @@ export const StatusBar = () => {
       </div>
     </div>
   );
-};
+});
+
+StatusBar.displayName = "StatusBar";
+

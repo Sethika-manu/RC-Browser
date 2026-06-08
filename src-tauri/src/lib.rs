@@ -1226,7 +1226,12 @@ async fn get_system_metrics(
         sys.refresh_process(pid);
 
         if let Some(process) = sys.process(pid) {
-            let cpu = process.cpu_usage();
+            let cpus_count = sys.cpus().len();
+            let cpu = if cpus_count > 0 {
+                process.cpu_usage() / cpus_count as f32
+            } else {
+                process.cpu_usage()
+            };
             let ram = process.memory() / 1024 / 1024;
             let ping = get_ping();
 

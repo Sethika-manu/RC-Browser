@@ -410,16 +410,16 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
       onMouseDown={isMobile ? undefined : handleMouseDownDrag}
       className="bg-white dark:bg-[#0a0a0a] border-b border-neutral-200 dark:border-white/5 flex items-center justify-between px-4 select-none cursor-default active:cursor-grabbing h-12 w-full text-neutral-800 dark:text-neutral-100"
     >
-      <div data-tauri-drag-region={isMobile ? undefined : ""} className="flex items-center gap-3 w-1/4 h-full pointer-events-none hidden md:flex">
+      <div data-tauri-drag-region={isMobile ? undefined : ""} className="flex items-center gap-3 w-1/4 h-full pointer-events-none hidden md:flex flex-shrink-0">
           <div className="w-2.5 h-2.5 bg-accent rounded-full shadow-[0_0_10px_rgba(var(--accent-rgb),0.5)]" />
           <span className="text-[10px] font-bold font-mono tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
             RC BROWSER <span className="text-neutral-300 dark:text-neutral-700 font-normal">{appVersion}</span>
           </span>
         </div>
 
-      <div className="flex-1 w-full max-w-md mx-auto flex items-center gap-2 h-full">
+      <div className="flex-1 w-full max-w-md md:max-w-2xl lg:max-w-[50vw] xl:max-w-3xl mx-auto flex items-center gap-2 h-full min-w-[280px]">
         {activeSessionId && (
-          <div className="flex items-center gap-1 mr-2">
+          <div className="flex items-center gap-1 mr-2 flex-shrink-0">
             <button
               onClick={handleGoBack}
               onMouseDown={(e) => e.stopPropagation()}
@@ -463,7 +463,7 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
           </div>
         )}
         
-        <form onSubmit={handleSearch} className="relative group flex-1">
+        <form onSubmit={handleSearch} className="relative group flex-1 min-w-[180px] md:min-w-[320px]">
           <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
             <Search size={12} className="text-neutral-400 dark:text-neutral-600 group-focus-within:text-accent transition-colors" />
           </div>
@@ -679,10 +679,10 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
             )}
           </div>
         )}
-        <div data-tauri-drag-region={isMobile ? undefined : ""} className="w-4 h-full" />
+        <div data-tauri-drag-region={isMobile ? undefined : ""} className="w-4 h-full flex-shrink-0" />
       </div>
 
-      <div className="flex items-center gap-1 w-1/4 justify-end h-full hidden md:flex">
+      <div className="flex items-center gap-1 w-1/4 justify-end h-full hidden md:flex flex-shrink-0">
         <div data-tauri-drag-region={isMobile ? undefined : ""} className="flex-1 h-full" />
         <button
           onClick={handleMinimize}

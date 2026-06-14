@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw, Home, Star, Shield } from "lucide-react";
+import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw, Home, Star, Shield, Mail, RefreshCw, Trash2, ExternalLink, Loader2 } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
+import { generateEmail, getInbox, getMessageDetails, TempMailMessage, TempMailDetails } from "../lib/tempMail";
 
 const appWindow = getCurrentWindow();
 
@@ -194,6 +195,164 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
   
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<{ queryOrUrl: string; timestamp: number }[]>([]);
+
+  // Built-in Temp Mail states (PC Only)
+  const [tempEmail, setTempEmail] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('rc_temp_email') || null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [tempMailToken, setTempMailToken] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('rc_temp_email_token') || null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [emails, setEmails] = useState<TempMailMessage[]>([]);
+  const [showTempMailPanel, setShowTempMailPanel] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<TempMailDetails | null>(null);
+  const [isLoadingMessage, setIsLoadingMessage] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isCheckingInbox, setIsCheckingInbox] = useState(false);
+
+  const knownEmailIdsRef = useRef<Set<string>>(new Set());
+
+  // Polling logic for temporary email (PC Only)
+  useEffect(() => {
+    if (isMobile || !tempEmail || !tempMailToken) {
+      setEmails([]);
+      knownEmailIdsRef.current = new Set();
+      return;
+    }
+
+    let isFirstFetch = true;
+
+    const fetchInbox = async () => {
+      setIsCheckingInbox(true);
+      try {
+        const name = tempEmail.split("@")[0];
+        const list = await getInbox(name, tempMailToken);
+        
+        // Find if there are new messages
+        const newEmails = list.filter(msg => !knownEmailIdsRef.current.has(msg.id));
+        
+        // Trigger toast for new emails (skip on initial load)
+        if (!isFirstFetch && newEmails.length > 0) {
+          newEmails.forEach(msg => {
+            window.dispatchEvent(new CustomEvent('rc-show-toast', {
+              detail: {
+                title: `New Email: ${msg.subject}`,
+                desc: `From: ${msg.from}`
+              }
+            }));
+          });
+        }
+
+        // Add all fetched email IDs to known list
+        list.forEach(msg => knownEmailIdsRef.current.add(msg.id));
+        setEmails(list);
+        isFirstFetch = false;
+      } catch (err) {
+        console.error("Failed to poll temp mail inbox:", err);
+      } finally {
+        setIsCheckingInbox(false);
+      }
+    };
+
+    fetchInbox();
+    const interval = setInterval(fetchInbox, 12000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [tempEmail, tempMailToken, isMobile]);
+
+  const handleGenerateTempMail = async () => {
+    setIsGenerating(true);
+    try {
+      const { email, token } = await generateEmail();
+      setTempEmail(email);
+      setTempMailToken(token);
+      localStorage.setItem('rc_temp_email', email);
+      localStorage.setItem('rc_temp_email_token', token);
+      
+      // Clear old messages and list of known IDs
+      setEmails([]);
+      knownEmailIdsRef.current = new Set();
+      setSelectedMessage(null);
+
+      // Copy to clipboard
+      await navigator.clipboard.writeText(email);
+
+      // Dispatch toast event
+      window.dispatchEvent(new CustomEvent('rc-show-toast', {
+        detail: {
+          title: "Temp Mail Active!",
+          desc: "Copied to clipboard: " + email
+        }
+      }));
+      setShowTempMailPanel(true);
+    } catch (error) {
+      console.error("Failed to generate temp mail:", error);
+      window.dispatchEvent(new CustomEvent('rc-show-toast', {
+        detail: {
+          title: "Generation Failed",
+          desc: "Could not create temporary email address."
+        }
+      }));
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleCopyTempMail = async () => {
+    if (!tempEmail) return;
+    try {
+      await navigator.clipboard.writeText(tempEmail);
+      window.dispatchEvent(new CustomEvent('rc-show-toast', {
+        detail: {
+          title: "Copied!",
+          desc: "Temp Mail copied to clipboard."
+        }
+      }));
+    } catch (err) {
+      console.error("Failed to copy email:", err);
+    }
+  };
+
+  const handleClearTempMail = () => {
+    setTempEmail(null);
+    setTempMailToken(null);
+    localStorage.removeItem('rc_temp_email');
+    localStorage.removeItem('rc_temp_email_token');
+    setEmails([]);
+    knownEmailIdsRef.current = new Set();
+    setSelectedMessage(null);
+    setShowTempMailPanel(false);
+    window.dispatchEvent(new CustomEvent('rc-show-toast', {
+      detail: {
+        title: "Temp Mail Deactivated",
+        desc: "Monitoring stopped and data cleared."
+      }
+    }));
+  };
+
+  const handleViewMessage = async (id: string) => {
+    if (!tempEmail || !tempMailToken) return;
+    setIsLoadingMessage(true);
+    try {
+      const name = tempEmail.split("@")[0];
+      const msg = await getMessageDetails(name, tempMailToken, id);
+      setSelectedMessage(msg);
+    } catch (err) {
+      console.error("Failed to load message details:", err);
+    } finally {
+      setIsLoadingMessage(false);
+    }
+  };
 
   useEffect(() => {
     const checkMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -532,7 +691,7 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
         </form>
 
         {!isMobile && (
-          <div className="relative flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <style>{`
               @keyframes vpnPulseGreen {
                 0% {
@@ -562,146 +721,363 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
                   filter: drop-shadow(0 0 2px rgba(239, 68, 68, 0.4));
                 }
               }
+              @keyframes mailPulseGreen {
+                0% {
+                  transform: scale(1);
+                  filter: drop-shadow(0 0 2px rgba(16, 185, 129, 0.4));
+                }
+                50% {
+                  transform: scale(1.12);
+                  filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.8));
+                }
+                100% {
+                  transform: scale(1);
+                  filter: drop-shadow(0 0 2px rgba(16, 185, 129, 0.4));
+                }
+              }
               .vpn-pulse-green {
                 animation: vpnPulseGreen 2s infinite ease-in-out;
               }
               .vpn-pulse-red {
                 animation: vpnPulseRed 1.5s infinite ease-in-out;
               }
+              .mail-pulse-green {
+                animation: mailPulseGreen 2s infinite ease-in-out;
+              }
+              .temp-mail-scrollbar::-webkit-scrollbar {
+                width: 4px;
+              }
+              .temp-mail-scrollbar::-webkit-scrollbar-track {
+                background: transparent;
+              }
+              .temp-mail-scrollbar::-webkit-scrollbar-thumb {
+                background: rgba(156, 163, 175, 0.3);
+                border-radius: 4px;
+              }
+              .temp-mail-scrollbar::-webkit-scrollbar-thumb:hover {
+                background: rgba(156, 163, 175, 0.5);
+              }
             `}</style>
-            <button
-              onClick={() => setShowProxyPanel(!showProxyPanel)}
-              onMouseDown={(e) => e.stopPropagation()}
-              className={`p-2 transition-all duration-300 rounded-lg cursor-pointer flex items-center justify-center gap-1.5 text-xs font-medium border ${
-                proxyEnabled
-                  ? proxyStatus === 'success'
-                    ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
-                    : "bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 shadow-[0_0_12px_rgba(239,68,68,0.15)]"
-                  : "bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-white/5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
-              }`}
-              title="Proxy / VPN Configuration"
-            >
-              <Shield 
-                size={14} 
-                className={
+
+            {/* VPN / Proxy Section */}
+            <div className="relative flex-shrink-0">
+              <button
+                onClick={() => {
+                  setShowProxyPanel(!showProxyPanel);
+                  setShowTempMailPanel(false);
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                className={`p-2 transition-all duration-300 rounded-lg cursor-pointer flex items-center justify-center gap-1.5 text-xs font-medium border ${
                   proxyEnabled
                     ? proxyStatus === 'success'
-                      ? "fill-emerald-500/20 text-emerald-500 vpn-pulse-green"
-                      : "fill-rose-500/20 text-rose-500 vpn-pulse-red"
-                    : ""
-                } 
-              />
-              <span>VPN</span>
-              <span className={`w-1.5 h-1.5 rounded-full ${
-                proxyEnabled 
-                  ? proxyStatus === 'success' 
-                    ? "bg-emerald-500" 
-                    : "bg-rose-500" 
-                  : "bg-neutral-300 dark:bg-neutral-700"
-              }`} />
-            </button>
-
-            {showProxyPanel && (
-              <div
-                className="absolute right-0 mt-2 w-72 bg-white dark:bg-[#0c0c0c] border border-neutral-200 dark:border-white/10 rounded-2xl shadow-2xl p-5 z-[999999] text-left cursor-default select-text"
-                onMouseDown={(e) => e.stopPropagation()}
+                      ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
+                      : "bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 shadow-[0_0_12px_rgba(239,68,68,0.15)]"
+                    : "bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-white/5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                }`}
+                title="Proxy / VPN Configuration"
               >
-                <div className="flex items-center justify-between mb-4 pb-2.5 border-b border-neutral-100 dark:border-white/5">
-                  <div className="flex items-center gap-2">
-                    <Shield 
-                      size={16} 
-                      className={
-                        proxyEnabled 
-                          ? proxyStatus === 'success'
-                            ? "text-emerald-500 fill-emerald-500/10 vpn-pulse-green" 
-                            : "text-rose-500 fill-rose-500/10 vpn-pulse-red"
-                          : "text-neutral-400"
-                      } 
-                    />
-                    <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">VPN / Proxy Routing</span>
+                <Shield 
+                  size={14} 
+                  className={
+                    proxyEnabled
+                      ? proxyStatus === 'success'
+                        ? "fill-emerald-500/20 text-emerald-500 vpn-pulse-green"
+                        : "fill-rose-500/20 text-rose-500 vpn-pulse-red"
+                      : ""
+                  } 
+                />
+                <span>VPN</span>
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  proxyEnabled 
+                    ? proxyStatus === 'success' 
+                      ? "bg-emerald-500" 
+                      : "bg-rose-500" 
+                    : "bg-neutral-300 dark:bg-neutral-700"
+                }`} />
+              </button>
+
+              {showProxyPanel && (
+                <div
+                  className="absolute right-0 mt-2 w-72 bg-white dark:bg-[#0c0c0c] border border-neutral-200 dark:border-white/10 rounded-2xl shadow-2xl p-5 z-[999999] text-left cursor-default select-text"
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-4 pb-2.5 border-b border-neutral-100 dark:border-white/5">
+                    <div className="flex items-center gap-2">
+                      <Shield 
+                        size={16} 
+                        className={
+                          proxyEnabled 
+                            ? proxyStatus === 'success'
+                              ? "text-emerald-500 fill-emerald-500/10 vpn-pulse-green" 
+                              : "text-rose-500 fill-rose-500/10 vpn-pulse-red"
+                            : "text-neutral-400"
+                        } 
+                      />
+                      <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">VPN / Proxy Routing</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[9px] font-bold uppercase tracking-wider ${
+                        proxyEnabled ? 'text-emerald-500' : 'text-neutral-400'
+                      }`}>
+                        {proxyEnabled ? 'ENABLED' : 'DISABLED'}
+                      </span>
+                      <button
+                        onClick={() => setProxyEnabled(!proxyEnabled)}
+                        className={`w-9 h-5 rounded-full relative transition-all duration-300 shadow-inner cursor-pointer ${
+                          proxyEnabled
+                            ? 'bg-emerald-500 shadow-emerald-600/50'
+                            : 'bg-neutral-200 dark:bg-neutral-800'
+                        }`}
+                        title={proxyEnabled ? "Disable VPN" : "Enable VPN"}
+                      >
+                        <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-md transition-all duration-300 ease-out ${
+                          proxyEnabled ? 'translate-x-4' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[9px] font-bold uppercase tracking-wider ${
-                      proxyEnabled ? 'text-emerald-500' : 'text-neutral-400'
-                    }`}>
-                      {proxyEnabled ? 'ENABLED' : 'DISABLED'}
-                    </span>
-                    <button
-                      onClick={() => setProxyEnabled(!proxyEnabled)}
-                      className={`w-9 h-5 rounded-full relative transition-all duration-300 shadow-inner cursor-pointer ${
-                        proxyEnabled
-                          ? 'bg-emerald-500 shadow-emerald-600/50'
-                          : 'bg-neutral-200 dark:bg-neutral-800'
-                      }`}
-                      title={proxyEnabled ? "Disable VPN" : "Enable VPN"}
-                    >
-                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-md transition-all duration-300 ease-out ${
-                        proxyEnabled ? 'translate-x-4' : 'translate-x-0'
-                      }`} />
-                    </button>
+
+                  <div className="space-y-4">
+                    {proxyError && (
+                      <div className="bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-lg p-2 text-[10px] font-medium leading-normal">
+                        ⚠️ Connection failed: {proxyError}
+                      </div>
+                    )}
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">Proxy Protocol</label>
+                        <select
+                          value={proxyType}
+                          onChange={(e) => setProxyType(e.target.value as any)}
+                          className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-white/5 rounded-lg px-2.5 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-accent/30 focus:ring-1 focus:ring-accent/10 transition-all"
+                        >
+                          <option value="http">HTTP</option>
+                          <option value="socks5">SOCKS5</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">IP Address / Host</label>
+                        <input
+                          type="text"
+                          value={proxyIp}
+                          onChange={(e) => setProxyIp(e.target.value)}
+                          placeholder="e.g. 127.0.0.1"
+                          className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-white/5 rounded-lg px-2.5 py-2 text-xs text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:border-accent/30 focus:ring-1 focus:ring-accent/10 transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">Port</label>
+                        <input
+                          type="text"
+                          value={proxyPort}
+                          onChange={(e) => setProxyPort(e.target.value)}
+                          placeholder="e.g. 8080"
+                          className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-white/5 rounded-lg px-2.5 py-2 text-xs text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:border-accent/30 focus:ring-1 focus:ring-accent/10 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-2.5 border-t border-neutral-100 dark:border-white/5 justify-end">
+                      <button
+                        onClick={() => setShowProxyPanel(false)}
+                        className="px-3 py-2 rounded-lg text-[10px] font-bold text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveProxy}
+                        className="px-4 py-2 rounded-lg text-[10px] font-bold text-white bg-accent hover:bg-accent/90 shadow-md shadow-accent/20 transition-all cursor-pointer"
+                      >
+                        Apply & Save
+                      </button>
+                    </div>
                   </div>
                 </div>
+              )}
+            </div>
 
-                <div className="space-y-4">
-                  {proxyError && (
-                    <div className="bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-lg p-2 text-[10px] font-medium leading-normal">
-                      ⚠️ Connection failed: {proxyError}
+            {/* Built-in Temp Mail Section */}
+            <div className="relative flex-shrink-0">
+              <button
+                onClick={() => {
+                  if (!tempEmail) {
+                    handleGenerateTempMail();
+                  } else {
+                    setShowTempMailPanel(!showTempMailPanel);
+                  }
+                  setShowProxyPanel(false);
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                className={`p-2 transition-all duration-300 rounded-lg cursor-pointer flex items-center justify-center gap-1.5 text-xs font-medium border ${
+                  tempEmail
+                    ? "bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/30 text-indigo-650 dark:text-indigo-400 shadow-[0_0_12px_rgba(99,102,241,0.15)] animate-none"
+                    : "bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-white/5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                }`}
+                title="Temporary Email Generator"
+              >
+                <Mail 
+                  size={14} 
+                  className={tempEmail ? "text-indigo-500" : ""}
+                />
+                <span>Temp Mail</span>
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  tempEmail 
+                    ? "bg-emerald-500 mail-pulse-green" 
+                    : "bg-neutral-300 dark:bg-neutral-700"
+                }`} />
+              </button>
+
+              {showTempMailPanel && (
+                <div
+                  className="absolute right-0 mt-2 w-[340px] bg-white dark:bg-[#0c0c0c] border border-neutral-200 dark:border-white/10 rounded-2xl shadow-2xl p-5 z-[999999] text-left cursor-default select-text flex flex-col gap-4"
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  {/* Panel Header */}
+                  <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-white/5">
+                    <div className="flex items-center gap-2">
+                      <Mail size={16} className="text-indigo-500" />
+                      <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">Temporary Email</span>
+                    </div>
+                    <button
+                      onClick={() => setShowTempMailPanel(false)}
+                      className="p-1 hover:bg-neutral-100 dark:hover:bg-white/5 rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-white transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  {/* Body Content */}
+                  {selectedMessage ? (
+                    /* Reading message detail view */
+                    <div className="flex flex-col gap-3">
+                      <button
+                        onClick={() => setSelectedMessage(null)}
+                        className="text-[10px] font-bold text-indigo-500 hover:underline flex items-center gap-1 cursor-pointer self-start"
+                      >
+                        &larr; Back to Inbox
+                      </button>
+                      
+                      <div className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-white/5 rounded-xl p-3 flex flex-col gap-1.5">
+                        <div className="text-[11px]"><span className="font-bold text-neutral-400">From:</span> <span className="font-semibold text-neutral-700 dark:text-neutral-300">{selectedMessage.from}</span></div>
+                        <div className="text-[11px]"><span className="font-bold text-neutral-400">Subject:</span> <span className="font-bold text-neutral-800 dark:text-neutral-100">{selectedMessage.subject}</span></div>
+                        <div className="text-[9px] text-neutral-450 dark:text-neutral-500 font-mono mt-0.5">{selectedMessage.date}</div>
+                      </div>
+
+                      <div className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-white/5 rounded-xl p-3 mt-1">
+                        <div 
+                          className="text-xs text-neutral-750 dark:text-neutral-355 overflow-y-auto max-h-56 temp-mail-scrollbar select-text leading-relaxed break-words"
+                          dangerouslySetInnerHTML={{ __html: selectedMessage.body || selectedMessage.textBody || "<p className='text-neutral-400 italic'>No content</p>" }}
+                        />
+                      </div>
+                    </div>
+                  ) : tempEmail ? (
+                    /* Normal active inbox view */
+                    <div className="flex flex-col gap-4">
+                      {/* Active email display and copy buttons */}
+                      <div className="flex items-center justify-between bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-white/5 rounded-xl p-2.5 relative group/email">
+                        <span className="text-[11px] font-mono font-semibold text-neutral-800 dark:text-neutral-300 select-all pr-2 truncate max-w-[200px]" title={tempEmail}>
+                          {tempEmail}
+                        </span>
+                        
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={handleCopyTempMail}
+                            className="p-1.5 hover:bg-neutral-200 dark:hover:bg-white/10 rounded-md text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
+                            title="Copy Email Address"
+                          >
+                            <Copy size={12} />
+                          </button>
+                          <button
+                            onClick={handleGenerateTempMail}
+                            disabled={isGenerating}
+                            className="p-1.5 hover:bg-neutral-200 dark:hover:bg-white/10 rounded-md text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors disabled:opacity-50"
+                            title="Generate New Address"
+                          >
+                            <RefreshCw size={12} className={isGenerating ? "animate-spin" : ""} />
+                          </button>
+                          <button
+                            onClick={handleClearTempMail}
+                            className="p-1.5 hover:bg-rose-500/10 rounded-md text-rose-500 hover:bg-rose-500/20 transition-colors"
+                            title="Deactivate Temp Mail"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Inbox list */}
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Inbox ({emails.length})</span>
+                          {isCheckingInbox && (
+                            <Loader2 size={10} className="animate-spin text-neutral-400" />
+                          )}
+                        </div>
+
+                        <div className="max-h-52 overflow-y-auto temp-mail-scrollbar pr-0.5">
+                          {emails.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-10 text-neutral-400 dark:text-neutral-500 text-center gap-2">
+                              <Loader2 size={20} className="animate-spin text-indigo-500/60" />
+                              <div className="text-[11px] font-medium text-neutral-600 dark:text-neutral-400">Monitoring active...</div>
+                              <div className="text-[9px] text-neutral-400 dark:text-neutral-550 max-w-[200px]">Waiting for incoming verification mails or OTPs</div>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {emails.map((msg) => (
+                                <div
+                                  key={msg.id}
+                                  onClick={() => handleViewMessage(msg.id)}
+                                  className="p-2.5 bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 rounded-xl hover:bg-indigo-50/50 dark:hover:bg-indigo-500/5 hover:border-indigo-200 dark:hover:border-indigo-500/20 transition-all cursor-pointer text-left flex flex-col gap-0.5"
+                                >
+                                  <div className="flex justify-between items-baseline">
+                                    <span className="text-[10px] font-bold text-neutral-700 dark:text-neutral-300 truncate max-w-[170px]">{msg.from}</span>
+                                    <span className="text-[8px] text-neutral-400 dark:text-neutral-500 font-mono flex-shrink-0">{msg.date.split(" ")[1] || msg.date}</span>
+                                  </div>
+                                  <span className="text-[10.5px] font-semibold text-neutral-800 dark:text-neutral-200 truncate">{msg.subject}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Initial generate call-to-action view */
+                    <div className="flex flex-col items-center py-6 text-center gap-3">
+                      <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 rounded-full text-indigo-600 dark:text-indigo-400">
+                        <Mail size={28} />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">Generate Disposable Inbox</span>
+                        <span className="text-[10.5px] text-neutral-500 dark:text-neutral-400 max-w-[240px]">
+                          Create a temporary email instantly. Ideal for verification steps without spamming your real inbox.
+                        </span>
+                      </div>
+                      <button
+                        onClick={handleGenerateTempMail}
+                        disabled={isGenerating}
+                        className="mt-2 w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 active:scale-95 shadow-md shadow-indigo-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:pointer-events-none"
+                      >
+                        {isGenerating ? (
+                          <>
+                            <Loader2 size={13} className="animate-spin" />
+                            <span>Creating Inbox...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Mail size={13} />
+                            <span>Create Temporary Email</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   )}
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">Proxy Protocol</label>
-                      <select
-                        value={proxyType}
-                        onChange={(e) => setProxyType(e.target.value as any)}
-                        className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-white/5 rounded-lg px-2.5 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-accent/30 focus:ring-1 focus:ring-accent/10 transition-all"
-                      >
-                        <option value="http">HTTP</option>
-                        <option value="socks5">SOCKS5</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">IP Address / Host</label>
-                      <input
-                        type="text"
-                        value={proxyIp}
-                        onChange={(e) => setProxyIp(e.target.value)}
-                        placeholder="e.g. 127.0.0.1"
-                        className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-white/5 rounded-lg px-2.5 py-2 text-xs text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:border-accent/30 focus:ring-1 focus:ring-accent/10 transition-all"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">Port</label>
-                      <input
-                        type="text"
-                        value={proxyPort}
-                        onChange={(e) => setProxyPort(e.target.value)}
-                        placeholder="e.g. 8080"
-                        className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-white/5 rounded-lg px-2.5 py-2 text-xs text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:border-accent/30 focus:ring-1 focus:ring-accent/10 transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 pt-2.5 border-t border-neutral-100 dark:border-white/5 justify-end">
-                    <button
-                      onClick={() => setShowProxyPanel(false)}
-                      className="px-3 py-2 rounded-lg text-[10px] font-bold text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-white/5 transition-colors cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSaveProxy}
-                      className="px-4 py-2 rounded-lg text-[10px] font-bold text-white bg-accent hover:bg-accent/90 shadow-md shadow-accent/20 transition-all cursor-pointer"
-                    >
-                      Apply & Save
-                    </button>
-                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
         <div data-tauri-drag-region={isMobile ? undefined : ""} className="w-4 h-full flex-shrink-0" />

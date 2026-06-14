@@ -1285,6 +1285,7 @@ pub fn run() {
     }
 
     builder
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
         .manage(SystemState(std::sync::Mutex::new(sysinfo::System::new_all())))
         .manage(PrivacyState(std::sync::atomic::AtomicBool::new(true)))

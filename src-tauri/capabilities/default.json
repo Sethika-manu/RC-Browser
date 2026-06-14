@@ -42,6 +42,13 @@
     "core:window:allow-unmaximize",
     "core:window:allow-close",
     "core:window:allow-start-dragging",
-    "shell:default"
+    "shell:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://www.1secmail.com/**" },
+        { "url": "https://www.developermail.com/**" }
+      ]
+    }
   ]
 }

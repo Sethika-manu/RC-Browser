@@ -222,6 +222,14 @@ export default function App() {
     };
     window.addEventListener('rc-recreate-active-webview', handleRecreateWebview);
 
+    const handleShowToast = (e: Event) => {
+      const customEvent = e as CustomEvent<{ title: string; desc: string }>;
+      if (customEvent.detail) {
+        setToastMessage({ title: customEvent.detail.title, desc: customEvent.detail.desc });
+      }
+    };
+    window.addEventListener('rc-show-toast', handleShowToast);
+
     // Initial sync of extensions to Rust backend on startup
     syncExtensionsToRust().catch(err => console.error("Error doing startup extensions sync:", err));
 
@@ -242,6 +250,7 @@ export default function App() {
       unlistenNewTabPromise.then(unlisten => unlisten());
       window.removeEventListener('rc-download-finished', handleHistoryUpdate);
       window.removeEventListener('rc-recreate-active-webview', handleRecreateWebview);
+      window.removeEventListener('rc-show-toast', handleShowToast);
     };
   }, []);
 

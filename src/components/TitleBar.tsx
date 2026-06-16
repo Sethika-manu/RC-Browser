@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw, Home, Star, Shield, Mail, RefreshCw, Trash2, ExternalLink, Loader2, Columns, Timer, MoreVertical, Puzzle, Settings, History as HistoryIcon, Download } from "lucide-react";
+import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw, Home, Star, Shield, Mail, RefreshCw, Trash2, ExternalLink, Loader2, Columns, Timer, MoreVertical, Puzzle, Settings, History as HistoryIcon, Download, Link2 } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { generateEmail, getInbox, getMessageDetails, TempMailMessage, TempMailDetails } from "../lib/tempMail";
@@ -214,6 +214,66 @@ export const TitleBar = ({
       console.error("Failed to toggle bookmark:", e);
     }
   };
+
+  const cleanUrl = (urlStr: string): string => {
+    let tempUrl = urlStr.trim();
+    if (!tempUrl) return urlStr;
+
+    let hasPrepended = false;
+    if (!tempUrl.startsWith("http://") && !tempUrl.startsWith("https://")) {
+      tempUrl = "https://" + tempUrl;
+      hasPrepended = true;
+    }
+
+    try {
+      const url = new URL(tempUrl);
+      const searchParams = new URLSearchParams(url.search);
+      const keysToDelete: string[] = [];
+      for (const key of searchParams.keys()) {
+        const lowerKey = key.toLowerCase();
+        if (
+          lowerKey.startsWith("utm_") ||
+          ["fbclid", "gclid", "igshid", "_gl", "ref", "msclkid", "twclid", "dclid", "ttclid"].includes(lowerKey)
+        ) {
+          keysToDelete.push(key);
+        }
+      }
+      keysToDelete.forEach(key => searchParams.delete(key));
+      url.search = searchParams.toString();
+      return url.toString();
+    } catch (e) {
+      return urlStr;
+    }
+  };
+
+  const handleCopyCleanLink = async () => {
+    const activeSession = sessions?.find(s => s.id === activeSessionId);
+    const urlToCopy = activeSession?.url || searchValue || "";
+
+    if (!urlToCopy || urlToCopy === "about:blank") {
+      window.dispatchEvent(new CustomEvent('rc-show-toast', {
+        detail: {
+          title: "No Link to Copy",
+          desc: "Open a website first to copy its link."
+        }
+      }));
+      return;
+    }
+
+    const cleaned = cleanUrl(urlToCopy);
+    try {
+      await navigator.clipboard.writeText(cleaned);
+      window.dispatchEvent(new CustomEvent('rc-show-toast', {
+        detail: {
+          title: "Clean Link Copied!",
+          desc: cleaned
+        }
+      }));
+    } catch (err) {
+      console.error("Clipboard copy failed:", err);
+    }
+  };
+
   const [isMaximized, setIsMaximized] = useState(false);
   const [appVersion, setAppVersion] = useState("0.1.0");
   const [isMobile, setIsMobile] = useState(false);
@@ -1215,6 +1275,17 @@ export const TitleBar = ({
                     >
                       <Puzzle size={14} />
                       <span>Extensions</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        handleCopyCleanLink();
+                        setShowMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors text-left text-neutral-700 dark:text-neutral-300"
+                    >
+                      <Link2 size={14} />
+                      <span>Copy Clean Link</span>
                     </button>
 
                     <button

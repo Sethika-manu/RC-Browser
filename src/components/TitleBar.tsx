@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw, Home, Star, Shield, Mail, RefreshCw, Trash2, ExternalLink, Loader2, Columns, MoreVertical, Puzzle, Settings, History as HistoryIcon, Download } from "lucide-react";
+import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw, Home, Star, Shield, Mail, RefreshCw, Trash2, ExternalLink, Loader2, Columns, Timer, MoreVertical, Puzzle, Settings, History as HistoryIcon, Download } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { generateEmail, getInbox, getMessageDetails, TempMailMessage, TempMailDetails } from "../lib/tempMail";
@@ -73,6 +73,8 @@ interface TitleBarProps {
   onExtensionsClick?: () => void;
   onSettingsClick?: () => void;
   activeView?: string;
+  isZenMode?: boolean;
+  onToggleZenMode?: () => void;
 }
 
 export const TitleBar = ({ 
@@ -88,7 +90,9 @@ export const TitleBar = ({
   onHistoryClick,
   onExtensionsClick,
   onSettingsClick,
-  activeView
+  activeView,
+  isZenMode = false,
+  onToggleZenMode
 }: TitleBarProps) => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [showProxyPanel, setShowProxyPanel] = useState(false);
@@ -641,7 +645,7 @@ export const TitleBar = ({
           </span>
         </div>
 
-      <div className="flex-1 w-full max-w-md md:max-w-2xl lg:max-w-[50vw] xl:max-w-3xl mx-auto flex items-center gap-2 h-full min-w-[280px]">
+      <div className="flex-1 w-full flex items-center gap-2 h-full min-w-[280px]">
         {activeSessionId && (
           <div className="flex items-center gap-1 mr-2 flex-shrink-0">
             <button
@@ -687,7 +691,7 @@ export const TitleBar = ({
           </div>
         )}
         
-        <form onSubmit={handleSearch} className="relative group flex-1 min-w-[100px] flex-shrink">
+        <form onSubmit={handleSearch} className="relative group flex-1 min-w-[250px] flex-shrink">
           <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
             <Search size={12} className="text-neutral-400 dark:text-neutral-600 group-focus-within:text-accent transition-colors" />
           </div>
@@ -804,7 +808,7 @@ export const TitleBar = ({
               <button
                 onClick={onToggleSplitScreen}
                 onMouseDown={(e) => e.stopPropagation()}
-                className={`p-2 transition-all duration-300 rounded-lg cursor-pointer flex items-center justify-center gap-1.5 text-xs font-medium border ${
+                className={`p-2 transition-all duration-300 rounded-lg cursor-pointer hidden lg:flex items-center justify-center gap-1.5 text-xs font-medium border ${
                   isSplitScreen
                     ? "bg-accent/10 border-accent/30 text-accent shadow-md shadow-accent/10"
                     : "bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-white/5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
@@ -812,7 +816,7 @@ export const TitleBar = ({
                 title="Toggle Split-Screen Dual View"
               >
                 <Columns size={14} className={isSplitScreen ? "text-accent" : ""} />
-                <span>Dual View</span>
+                <span className="hidden xl:inline">Dual View</span>
               </button>
             </div>
 
@@ -824,7 +828,7 @@ export const TitleBar = ({
                   setShowTempMailPanel(false);
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
-                className={`p-2 transition-all duration-300 rounded-lg cursor-pointer flex items-center justify-center gap-1.5 text-xs font-medium border ${
+                className={`p-2 transition-all duration-300 rounded-lg cursor-pointer hidden lg:flex items-center justify-center gap-1.5 text-xs font-medium border ${
                   proxyEnabled
                     ? proxyStatus === 'success'
                       ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
@@ -843,7 +847,7 @@ export const TitleBar = ({
                       : ""
                   } 
                 />
-                <span>VPN</span>
+                <span className="hidden xl:inline">VPN</span>
                 <span className={`w-1.5 h-1.5 rounded-full ${
                   proxyEnabled 
                     ? proxyStatus === 'success' 
@@ -968,7 +972,7 @@ export const TitleBar = ({
                   setShowProxyPanel(false);
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
-                className={`p-2 transition-all duration-300 rounded-lg cursor-pointer flex items-center justify-center gap-1.5 text-xs font-medium border ${
+                className={`p-2 transition-all duration-300 rounded-lg cursor-pointer hidden lg:flex items-center justify-center gap-1.5 text-xs font-medium border ${
                   tempEmail
                     ? "bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/30 text-indigo-650 dark:text-indigo-400 shadow-[0_0_12px_rgba(99,102,241,0.15)] animate-none"
                     : "bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-white/5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
@@ -979,7 +983,7 @@ export const TitleBar = ({
                   size={14} 
                   className={tempEmail ? "text-indigo-500" : ""}
                 />
-                <span>Temp Mail</span>
+                <span className="hidden xl:inline">Temp Mail</span>
                 <span className={`w-1.5 h-1.5 rounded-full ${
                   tempEmail 
                     ? "bg-emerald-500 mail-pulse-green" 
@@ -1211,6 +1215,64 @@ export const TitleBar = ({
                     >
                       <Puzzle size={14} />
                       <span>Extensions</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        onToggleSplitScreen?.();
+                        setShowMenu(false);
+                      }}
+                      className={`w-full flex lg:hidden items-center gap-3 px-4 py-2.5 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors text-left ${
+                        isSplitScreen ? "text-accent bg-accent/5" : "text-neutral-700 dark:text-neutral-300"
+                      }`}
+                    >
+                      <Columns size={14} className={isSplitScreen ? "text-accent" : ""} />
+                      <span>Dual View</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setShowProxyPanel(!showProxyPanel);
+                        setShowTempMailPanel(false);
+                        setShowMenu(false);
+                      }}
+                      className={`w-full flex lg:hidden items-center gap-3 px-4 py-2.5 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors text-left ${
+                        proxyEnabled ? "text-emerald-500 bg-emerald-500/5" : "text-neutral-700 dark:text-neutral-300"
+                      }`}
+                    >
+                      <Shield size={14} className={proxyEnabled ? "text-emerald-500" : ""} />
+                      <span>VPN Proxy</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (!tempEmail) {
+                          handleGenerateTempMail();
+                        } else {
+                          setShowTempMailPanel(!showTempMailPanel);
+                        }
+                        setShowProxyPanel(false);
+                        setShowMenu(false);
+                      }}
+                      className={`w-full flex lg:hidden items-center gap-3 px-4 py-2.5 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors text-left ${
+                        tempEmail ? "text-indigo-500 bg-indigo-500/5" : "text-neutral-700 dark:text-neutral-300"
+                      }`}
+                    >
+                      <Mail size={14} className={tempEmail ? "text-indigo-500" : ""} />
+                      <span>Temp Mail</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        onToggleZenMode?.();
+                        setShowMenu(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors text-left ${
+                        isZenMode ? "text-purple-500 bg-purple-500/5" : "text-neutral-700 dark:text-neutral-300"
+                      }`}
+                    >
+                      <Timer size={14} className={isZenMode ? "text-purple-500 animate-pulse" : ""} />
+                      <span>Zen Mode</span>
                     </button>
 
                     <div className="h-px bg-neutral-100 dark:bg-white/5 my-1 mx-2" />

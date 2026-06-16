@@ -105,6 +105,10 @@ export default function App() {
   const [rightActiveSessionId, setRightActiveSessionId] = useState<string | null>(null);
   const [focusedSide, setFocusedSide] = useState<'left' | 'right'>('left');
 
+  const [isZenMode, setIsZenMode] = useState(false);
+  const [zenTimeLeft, setZenTimeLeft] = useState(25 * 60);
+  const [isZenPaused, setIsZenPaused] = useState(false);
+
   const [searchValue, setSearchValue] = useState("");
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [appView, setAppView] = useState<'browser' | 'settings' | 'downloads' | 'tabs' | 'history' | 'extensions' | 'bookmarks'>('browser');
@@ -502,6 +506,26 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isMobile, activeSessionId, rightActiveSessionId, isSplitScreen]);
 
+  useEffect(() => {
+    let interval: any = null;
+    if (isZenMode && !isZenPaused) {
+      interval = setInterval(() => {
+        setZenTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setIsZenMode(false);
+            setToastMessage({ title: "Zen Session Completed", desc: "Well done! Take a break." });
+            return 25 * 60;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isZenMode, isZenPaused]);
+
   const handleNavigate = async (url: string) => {
     let targetUrl = url.trim();
     if (targetUrl !== "" && targetUrl !== "about:blank") {
@@ -712,130 +736,140 @@ export default function App() {
       transition={{ duration: 0.8 }}
       className={`flex flex-col h-screen text-neutral-900 dark:text-white overflow-hidden font-sans transition-colors duration-200 ${appView === 'browser' && focusedSessionId ? 'bg-transparent' : 'bg-white dark:bg-[#0a0a0a]'}`}
     >
-      <div 
-        id="top-bar-container"
-        className="w-full bg-white dark:bg-gray-900 border-b border-neutral-200 dark:border-white/5 flex-shrink-0 relative flex flex-col z-[99999]"
-        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
-      >
-        <TitleBar 
-          onNavigate={handleNavigate} 
-          searchValue={searchValue}
-          onSearchChange={setSearchValue}
-          activeSessionId={isSplitScreen && focusedSide === 'right' ? rightActiveSessionId : activeSessionId}
-          sessions={sessions}
-          isSplitScreen={isSplitScreen}
-          onToggleSplitScreen={handleToggleSplitScreen}
-          onDownloadsClick={() => handleNavClick('downloads')}
-          onBookmarksClick={() => handleNavClick('bookmarks')}
-          onHistoryClick={() => handleNavClick('history')}
-          onExtensionsClick={() => handleNavClick('extensions')}
-          onSettingsClick={() => handleNavClick('settings')}
-          activeView={appView}
-        />
+      {!isZenMode && (
+        <div 
+          id="top-bar-container"
+          className="w-full bg-white dark:bg-gray-900 border-b border-neutral-200 dark:border-white/5 flex-shrink-0 relative flex flex-col z-[99999]"
+          style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+        >
+          <TitleBar 
+            onNavigate={handleNavigate} 
+            searchValue={searchValue}
+            onSearchChange={setSearchValue}
+            activeSessionId={isSplitScreen && focusedSide === 'right' ? rightActiveSessionId : activeSessionId}
+            sessions={sessions}
+            isSplitScreen={isSplitScreen}
+            onToggleSplitScreen={handleToggleSplitScreen}
+            onDownloadsClick={() => handleNavClick('downloads')}
+            onBookmarksClick={() => handleNavClick('bookmarks')}
+            onHistoryClick={() => handleNavClick('history')}
+            onExtensionsClick={() => handleNavClick('extensions')}
+            onSettingsClick={() => handleNavClick('settings')}
+            activeView={appView}
+            isZenMode={isZenMode}
+            onToggleZenMode={() => {
+              setIsZenMode(true);
+              setZenTimeLeft(25 * 60);
+              setIsZenPaused(false);
+            }}
+          />
 
-        <AnimatePresence>
-          {(toastMessage && !isMobile) && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-              onUpdate={() => window.dispatchEvent(new Event('resize'))}
-              onAnimationComplete={() => window.dispatchEvent(new Event('resize'))}
-              className="w-full overflow-hidden flex-shrink-0 pointer-events-auto"
-            >
-              <div className="relative z-[99999] flex items-center justify-between w-full py-2.5 px-4 bg-accent text-white shadow-md">
-                <div className="flex items-center gap-2 md:gap-3 overflow-hidden w-full mr-2">
-                  {(() => {
-                    const title = toastMessage.title.toLowerCase();
-                    if (title.includes('success')) {
-                      return (
-                        <div className="bg-emerald-500/20 text-emerald-300 p-1 md:p-1.5 rounded-lg flex-shrink-0 flex items-center justify-center border border-emerald-500/30">
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                        </div>
-                      );
-                    }
-                    if (title.includes('fail') || title.includes('error')) {
-                      return (
-                        <div className="bg-rose-500/20 text-rose-300 p-1 md:p-1.5 rounded-lg flex-shrink-0 flex items-center justify-center border border-rose-500/30">
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                        </div>
-                      );
-                    }
-                    if (title.includes('copy')) {
-                      return (
-                        <div className="bg-amber-500/20 text-amber-300 p-1 md:p-1.5 rounded-lg flex-shrink-0 flex items-center justify-center border border-amber-500/30">
-                          <Copy size={14} />
-                        </div>
-                      );
-                    }
-                    return (
-                      <div className="bg-blue-500/20 text-blue-300 p-1 md:p-1.5 rounded-lg flex-shrink-0 flex items-center justify-center border border-blue-500/30">
-                        <Download size={14} className="animate-bounce" />
-                      </div>
-                    );
-                  })()}
-                  <div className="flex flex-col md:flex-row md:items-baseline gap-0.5 md:gap-2 overflow-hidden text-[11px] md:text-sm">
-                    <span className="font-bold text-white tracking-wide flex-shrink-0">{toastMessage.title}</span>
-                    <span className="text-white/80 truncate font-medium text-[10px] md:text-xs">{toastMessage.desc}</span>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={() => setToastMessage(null)}
-                  className="p-1 rounded-lg text-white/85 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 cursor-pointer pointer-events-auto"
-                  aria-label="Close notification"
-                >
-                  <svg className="w-3.5 h-3.5 md:w-4 md:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                  </svg>
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-transparent overflow-hidden z-50">
           <AnimatePresence>
-            {(focusedSessionId && (progressStates[focusedSessionId] || 0) > 0) && (
-              <motion.div 
-                initial={{ width: '0%', opacity: 1 }}
-                animate={{ width: `${progressStates[focusedSessionId]}%`, opacity: progressStates[focusedSessionId] === 100 ? 0 : 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3, ease: 'easeOut' }}
-                className="absolute left-0 top-0 h-full bg-accent shadow-[0_0_8px_rgba(var(--accent-rgb),0.8)]"
-              />
+            {(toastMessage && !isMobile) && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                onUpdate={() => window.dispatchEvent(new Event('resize'))}
+                onAnimationComplete={() => window.dispatchEvent(new Event('resize'))}
+                className="w-full overflow-hidden flex-shrink-0 pointer-events-auto"
+              >
+                <div className="relative z-[99999] flex items-center justify-between w-full py-2.5 px-4 bg-accent text-white shadow-md">
+                  <div className="flex items-center gap-2 md:gap-3 overflow-hidden w-full mr-2">
+                    {(() => {
+                      const title = toastMessage.title.toLowerCase();
+                      if (title.includes('success')) {
+                        return (
+                          <div className="bg-emerald-500/20 text-emerald-300 p-1 md:p-1.5 rounded-lg flex-shrink-0 flex items-center justify-center border border-emerald-500/30">
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                          </div>
+                        );
+                      }
+                      if (title.includes('fail') || title.includes('error')) {
+                        return (
+                          <div className="bg-rose-500/20 text-rose-300 p-1 md:p-1.5 rounded-lg flex-shrink-0 flex items-center justify-center border border-rose-500/30">
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                          </div>
+                        );
+                      }
+                      if (title.includes('copy')) {
+                        return (
+                          <div className="bg-amber-500/20 text-amber-300 p-1 md:p-1.5 rounded-lg flex-shrink-0 flex items-center justify-center border border-amber-500/30">
+                            <Copy size={14} />
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="bg-blue-500/20 text-blue-300 p-1 md:p-1.5 rounded-lg flex-shrink-0 flex items-center justify-center border border-blue-500/30">
+                          <Download size={14} className="animate-bounce" />
+                        </div>
+                      );
+                    })()}
+                    <div className="flex flex-col md:flex-row md:items-baseline gap-0.5 md:gap-2 overflow-hidden text-[11px] md:text-sm">
+                      <span className="font-bold text-white tracking-wide flex-shrink-0">{toastMessage.title}</span>
+                      <span className="text-white/80 truncate font-medium text-[10px] md:text-xs">{toastMessage.desc}</span>
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={() => setToastMessage(null)}
+                    className="p-1 rounded-lg text-white/85 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 cursor-pointer pointer-events-auto"
+                    aria-label="Close notification"
+                  >
+                    <svg className="w-3.5 h-3.5 md:w-4 md:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+              </motion.div>
             )}
           </AnimatePresence>
+
+          <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-transparent overflow-hidden z-50">
+            <AnimatePresence>
+              {(focusedSessionId && (progressStates[focusedSessionId] || 0) > 0) && (
+                <motion.div 
+                  initial={{ width: '0%', opacity: 1 }}
+                  animate={{ width: `${progressStates[focusedSessionId]}%`, opacity: progressStates[focusedSessionId] === 100 ? 0 : 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3, ease: 'easeOut' }}
+                  className="absolute left-0 top-0 h-full bg-accent shadow-[0_0_8px_rgba(var(--accent-rgb),0.8)]"
+                />
+              )}
+            </AnimatePresence>
+          </div>
         </div>
-      </div>
+      )}
       
       <div className="flex flex-1 overflow-hidden relative">
-        <div className="relative z-[100] hidden md:block">
-          <Sidebar 
-            sessions={sessions}
-            activeSessionId={isSplitScreen && focusedSide === 'right' ? rightActiveSessionId : activeSessionId}
-            onSessionSelect={(id) => {
-              const selectedSession = sessions.find(s => s.id === id);
-              if (selectedSession) {
-                if (isSplitScreen && selectedSession.side === 'right') {
-                  setRightActiveSessionId(id);
-                  setFocusedSide('right');
-                } else {
-                  setActiveSessionId(id);
-                  setFocusedSide('left');
+        {!isZenMode && (
+          <div className="relative z-[100] hidden md:block">
+            <Sidebar 
+              sessions={sessions}
+              activeSessionId={isSplitScreen && focusedSide === 'right' ? rightActiveSessionId : activeSessionId}
+              onSessionSelect={(id) => {
+                const selectedSession = sessions.find(s => s.id === id);
+                if (selectedSession) {
+                  if (isSplitScreen && selectedSession.side === 'right') {
+                    setRightActiveSessionId(id);
+                    setFocusedSide('right');
+                  } else {
+                    setActiveSessionId(id);
+                    setFocusedSide('left');
+                  }
+                  setAppView('browser');
                 }
-                setAppView('browser');
-              }
-            }}
-            onSessionClose={handleCloseSession}
-            onNewSession={() => handleCreateSession()}
-            onHomeClick={handleGoHome}
-            onSearchClick={() => setIsPaletteOpen(true)}
-            isSplitScreen={isSplitScreen}
-          />
-        </div>
+              }}
+              onSessionClose={handleCloseSession}
+              onNewSession={() => handleCreateSession()}
+              onHomeClick={handleGoHome}
+              onSearchClick={() => setIsPaletteOpen(true)}
+              isSplitScreen={isSplitScreen}
+            />
+          </div>
+        )}
         
         <main className="flex-1 relative overflow-hidden bg-transparent z-0 transition-colors duration-200">
           {isSplitScreen ? (
@@ -1270,6 +1304,54 @@ export default function App() {
         </div>
       </div>
       <CommandPalette isOpen={isPaletteOpen} onClose={() => setIsPaletteOpen(false)} onNavigate={handleNavigate} />
+      
+      {/* Zen Mode Floating Timer Overlay */}
+      {isZenMode && (
+        <div 
+          className="fixed bottom-6 right-6 bg-white/80 dark:bg-black/85 backdrop-blur-xl border border-neutral-200/50 dark:border-white/10 rounded-2xl shadow-2xl p-4 flex items-center gap-4 z-[999999] pointer-events-auto select-none transition-all duration-300 hover:shadow-purple-500/10 hover:border-purple-500/20"
+          style={{ boxShadow: "0 20px 40px -5px rgba(0, 0, 0, 0.3)" }}
+        >
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse flex-shrink-0" />
+            <span className="text-sm font-bold font-mono tracking-widest text-neutral-800 dark:text-neutral-200 text-lg">
+              {Math.floor(zenTimeLeft / 60).toString().padStart(2, '0')}:{Math.floor(zenTimeLeft % 60).toString().padStart(2, '0')}
+            </span>
+          </div>
+
+          <div className="h-4 w-[1px] bg-neutral-200 dark:bg-white/10" />
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setIsZenPaused(!isZenPaused)}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                isZenPaused 
+                  ? "text-emerald-500 hover:bg-emerald-500/10" 
+                  : "text-amber-500 hover:bg-amber-500/10"
+              }`}
+              title={isZenPaused ? "Resume focus timer" : "Pause focus timer"}
+            >
+              {isZenPaused ? (
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              ) : (
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+              )}
+            </button>
+
+            <button
+              onClick={() => {
+                setIsZenMode(false);
+                setIsZenPaused(false);
+              }}
+              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+              title="Exit Zen Mode"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

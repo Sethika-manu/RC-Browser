@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw, Home, Star, Shield, Mail, RefreshCw, Trash2, ExternalLink, Loader2 } from "lucide-react";
+import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw, Home, Star, Shield, Mail, RefreshCw, Trash2, ExternalLink, Loader2, Columns, MoreVertical, Puzzle, Settings, History as HistoryIcon, Download } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { generateEmail, getInbox, getMessageDetails, TempMailMessage, TempMailDetails } from "../lib/tempMail";
@@ -64,9 +65,31 @@ interface TitleBarProps {
   onSearchChange: (value: string) => void;
   activeSessionId: string | null;
   sessions?: { id: string; title: string; url: string }[];
+  isSplitScreen?: boolean;
+  onToggleSplitScreen?: () => void;
+  onDownloadsClick?: () => void;
+  onBookmarksClick?: () => void;
+  onHistoryClick?: () => void;
+  onExtensionsClick?: () => void;
+  onSettingsClick?: () => void;
+  activeView?: string;
 }
 
-export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessionId, sessions }: TitleBarProps) => {
+export const TitleBar = ({ 
+  onNavigate, 
+  searchValue, 
+  onSearchChange, 
+  activeSessionId, 
+  sessions,
+  isSplitScreen = false,
+  onToggleSplitScreen,
+  onDownloadsClick,
+  onBookmarksClick,
+  onHistoryClick,
+  onExtensionsClick,
+  onSettingsClick,
+  activeView
+}: TitleBarProps) => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [showProxyPanel, setShowProxyPanel] = useState(false);
   const [proxyEnabled, setProxyEnabled] = useState(() => {
@@ -195,6 +218,23 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
   
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<{ queryOrUrl: string; timestamp: number }[]>([]);
+
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    if (showMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showMenu]);
 
   // Built-in Temp Mail states (PC Only)
   const [tempEmail, setTempEmail] = useState<string | null>(() => {
@@ -592,9 +632,9 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
     <header
       data-tauri-drag-region={isMobile ? undefined : ""}
       onMouseDown={isMobile ? undefined : handleMouseDownDrag}
-      className="bg-white dark:bg-[#0a0a0a] border-b border-neutral-200 dark:border-white/5 flex items-center justify-between px-4 select-none cursor-default active:cursor-grabbing h-12 w-full text-neutral-800 dark:text-neutral-100"
+      className="bg-white dark:bg-[#0a0a0a] border-b border-neutral-200 dark:border-white/5 flex items-center justify-between px-4 select-none cursor-default active:cursor-grabbing h-12 w-full text-neutral-800 dark:text-neutral-100 relative z-[99999]"
     >
-      <div data-tauri-drag-region={isMobile ? undefined : ""} className="flex items-center gap-3 w-1/4 h-full pointer-events-none hidden md:flex flex-shrink-0">
+      <div data-tauri-drag-region={isMobile ? undefined : ""} className="flex items-center gap-3 w-1/4 min-w-max max-w-[25%] h-full pointer-events-none hidden md:flex flex-shrink-0">
           <div className="w-2.5 h-2.5 bg-accent rounded-full shadow-[0_0_10px_rgba(var(--accent-rgb),0.5)]" />
           <span className="text-[10px] font-bold font-mono tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
             RC BROWSER <span className="text-neutral-300 dark:text-neutral-700 font-normal">{appVersion}</span>
@@ -647,7 +687,7 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
           </div>
         )}
         
-        <form onSubmit={handleSearch} className="relative group flex-1 min-w-[180px] md:min-w-[320px]">
+        <form onSubmit={handleSearch} className="relative group flex-1 min-w-[100px] flex-shrink">
           <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
             <Search size={12} className="text-neutral-400 dark:text-neutral-600 group-focus-within:text-accent transition-colors" />
           </div>
@@ -758,6 +798,23 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
                 background: rgba(156, 163, 175, 0.5);
               }
             `}</style>
+
+            {/* Dual View Toggle Section */}
+            <div className="relative flex-shrink-0">
+              <button
+                onClick={onToggleSplitScreen}
+                onMouseDown={(e) => e.stopPropagation()}
+                className={`p-2 transition-all duration-300 rounded-lg cursor-pointer flex items-center justify-center gap-1.5 text-xs font-medium border ${
+                  isSplitScreen
+                    ? "bg-accent/10 border-accent/30 text-accent shadow-md shadow-accent/10"
+                    : "bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-white/5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                }`}
+                title="Toggle Split-Screen Dual View"
+              >
+                <Columns size={14} className={isSplitScreen ? "text-accent" : ""} />
+                <span>Dual View</span>
+              </button>
+            </div>
 
             {/* VPN / Proxy Section */}
             <div className="relative flex-shrink-0">
@@ -1078,12 +1135,108 @@ export const TitleBar = ({ onNavigate, searchValue, onSearchChange, activeSessio
                 </div>
               )}
             </div>
+
+            {/* 3-dot Dropdown Menu Section */}
+            <div className="relative flex-shrink-0" ref={menuRef}>
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                onMouseDown={(e) => e.stopPropagation()}
+                className={`p-2 transition-all duration-300 rounded-lg cursor-pointer flex items-center justify-center text-neutral-500 hover:text-neutral-850 dark:hover:text-neutral-200 border ${
+                  showMenu
+                    ? "bg-neutral-100 dark:bg-white/10 border-neutral-200 dark:border-white/10 text-neutral-800 dark:text-neutral-200"
+                    : "bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-white/5 text-neutral-500"
+                }`}
+                title="Menu"
+              >
+                <MoreVertical size={14} />
+              </button>
+
+              <AnimatePresence>
+                {showMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 mt-2 w-52 bg-white dark:bg-[#0c0c0c] border border-neutral-200 dark:border-white/10 rounded-2xl shadow-2xl py-2 z-[999999] text-left cursor-default flex flex-col gap-0.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={() => {
+                        onDownloadsClick?.();
+                        setShowMenu(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors text-left ${
+                        activeView === 'downloads' ? "text-accent bg-accent/5" : "text-neutral-700 dark:text-neutral-300"
+                      }`}
+                    >
+                      <Download size={14} />
+                      <span>Downloads</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        onBookmarksClick?.();
+                        setShowMenu(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors text-left ${
+                        activeView === 'bookmarks' ? "text-accent bg-accent/5" : "text-neutral-700 dark:text-neutral-300"
+                      }`}
+                    >
+                      <Star size={14} />
+                      <span>Bookmarks</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        onHistoryClick?.();
+                        setShowMenu(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors text-left ${
+                        activeView === 'history' ? "text-accent bg-accent/5" : "text-neutral-700 dark:text-neutral-300"
+                      }`}
+                    >
+                      <HistoryIcon size={14} />
+                      <span>History</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        onExtensionsClick?.();
+                        setShowMenu(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors text-left ${
+                        activeView === 'extensions' ? "text-accent bg-accent/5" : "text-neutral-700 dark:text-neutral-300"
+                      }`}
+                    >
+                      <Puzzle size={14} />
+                      <span>Extensions</span>
+                    </button>
+
+                    <div className="h-px bg-neutral-100 dark:bg-white/5 my-1 mx-2" />
+
+                    <button
+                      onClick={() => {
+                        onSettingsClick?.();
+                        setShowMenu(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors text-left ${
+                        activeView === 'settings' ? "text-accent bg-accent/5" : "text-neutral-700 dark:text-neutral-300"
+                      }`}
+                    >
+                      <Settings size={14} />
+                      <span>Settings</span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         )}
         <div data-tauri-drag-region={isMobile ? undefined : ""} className="w-4 h-full flex-shrink-0" />
       </div>
 
-      <div className="flex items-center gap-1 w-1/4 justify-end h-full hidden md:flex flex-shrink-0">
+      <div className="flex items-center gap-1 w-1/4 min-w-max max-w-[25%] justify-end h-full hidden md:flex flex-shrink-0">
         <div data-tauri-drag-region={isMobile ? undefined : ""} className="flex-1 h-full" />
         <button
           onClick={handleMinimize}

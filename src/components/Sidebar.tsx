@@ -1,20 +1,12 @@
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSettings } from "./SettingsContext";
 import { 
-  Globe, 
-  Layout, 
-  Settings, 
   ChevronLeft, 
   ChevronRight,
   Plus,
   Search,
-  X,
-  Download,
-  History as HistoryIcon,
-  Puzzle,
-  Star
+  X
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -26,44 +18,31 @@ interface Session {
   url: string;
   isSleeping?: boolean;
   lastAccessed?: number;
+  side?: 'left' | 'right';
 }
 
 interface SidebarProps {
   sessions: Session[];
   activeSessionId: string | null;
-  activeView: 'browser' | 'settings' | 'downloads' | 'tabs' | 'history' | 'extensions' | 'bookmarks';
   onSessionSelect: (id: string) => void;
   onSessionClose: (id: string) => void;
   onNewSession: () => void;
   onHomeClick: () => void;
   onSearchClick: () => void;
-  onSettingsClick: () => void;
-  onDownloadsClick: () => void;
-  onHistoryClick: () => void;
-  onExtensionsClick: () => void;
-  onBookmarksClick: () => void;
-  isDownloading: boolean;
+  isSplitScreen?: boolean;
 }
 
 export const Sidebar = ({ 
   sessions, 
   activeSessionId, 
-  activeView,
   onSessionSelect, 
   onSessionClose, 
   onNewSession,
   onHomeClick,
   onSearchClick,
-  onSettingsClick,
-  onDownloadsClick,
-  onHistoryClick,
-  onExtensionsClick,
-  onBookmarksClick,
-  isDownloading
+  isSplitScreen = false
 }: SidebarProps) => {
-  const { t, autoHideSidebar } = useSettings(); // Extract autoHideSidebar
-  
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const { t, autoHideSidebar } = useSettings();
   
   // Manual toggle state
   const [isManualCollapsed, setIsManualCollapsed] = useState(false);
@@ -89,7 +68,6 @@ export const Sidebar = ({
   return (
     <div
       style={{ width: isCollapsed ? 64 : 240 }}
-      // Added transition classes for smooth animation when expanding/collapsing
       className="h-full bg-white dark:bg-[#0a0a0a] border-r border-neutral-200 dark:border-white/5 flex flex-col relative z-20 flex-shrink-0 transition-[width] duration-300 ease-in-out"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -164,6 +142,16 @@ export const Sidebar = ({
                         (sleeping)
                       </span>
                     )}
+                    {isSplitScreen && (
+                      <span className={cn(
+                        "text-[9px] font-bold px-1.5 py-0.5 rounded-md ml-1.5 inline-block transition-colors",
+                        session.side === 'right'
+                          ? "bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400"
+                          : "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400"
+                      )}>
+                        {session.side === 'right' ? 'R' : 'L'}
+                      </span>
+                    )}
                   </span>
                 )}
               </button>
@@ -181,83 +169,6 @@ export const Sidebar = ({
               )}
             </div>
           ))}
-        </div>
-
-        {sessions.length > 0 && <div className="h-px bg-neutral-100 dark:bg-white/5 my-4 mx-2" />}
-
-        <div className="space-y-0.5 overflow-hidden">
-          <button 
-            onClick={onDownloadsClick}
-            className={cn(
-              "w-full flex items-center gap-3 p-2.5 rounded-lg transition-all whitespace-nowrap",
-              activeView === 'downloads'
-                ? "bg-neutral-100 dark:bg-white/5 text-neutral-900 dark:text-white shadow-sm"
-                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.02]"
-            )}
-          >
-            <motion.div
-              className="flex-shrink-0"
-              animate={{ y: isDownloading ? [0, -3, 0] : 0 }}
-              transition={{ repeat: isDownloading ? Infinity : 0, duration: 0.6 }}
-            >
-              <Download size={16} className={cn(isDownloading && "text-accent")} />
-            </motion.div>
-            {!isCollapsed && <span className="text-xs font-medium">Downloads</span>}
-          </button>
-
-          <button 
-            onClick={onBookmarksClick}
-            className={cn(
-              "w-full flex items-center gap-3 p-2.5 rounded-lg transition-all whitespace-nowrap",
-              activeView === 'bookmarks'
-                ? "bg-neutral-100 dark:bg-white/5 text-neutral-900 dark:text-white shadow-sm"
-                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.02]"
-            )}
-          >
-            <div className="flex-shrink-0"><Star size={16} /></div>
-            {!isCollapsed && <span className="text-xs font-medium">Bookmarks</span>}
-          </button>
-
-          <button 
-            onClick={onHistoryClick}
-            className={cn(
-              "w-full flex items-center gap-3 p-2.5 rounded-lg transition-all whitespace-nowrap",
-              activeView === 'history'
-                ? "bg-neutral-100 dark:bg-white/5 text-neutral-900 dark:text-white shadow-sm"
-                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.02]"
-            )}
-          >
-            <div className="flex-shrink-0"><HistoryIcon size={16} /></div>
-            {!isCollapsed && <span className="text-xs font-medium">{t('nav_history')}</span>}
-          </button>
-
-          {!isMobile && (
-            <button 
-              onClick={onExtensionsClick}
-              className={cn(
-                "w-full flex items-center gap-3 p-2.5 rounded-lg transition-all whitespace-nowrap",
-                activeView === 'extensions'
-                  ? "bg-neutral-100 dark:bg-white/5 text-neutral-900 dark:text-white shadow-sm"
-                  : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.02]"
-              )}
-            >
-              <div className="flex-shrink-0"><Puzzle size={16} /></div>
-              {!isCollapsed && <span className="text-xs font-medium">Extensions</span>}
-            </button>
-          )}
-
-          <button 
-            onClick={onSettingsClick}
-            className={cn(
-              "w-full flex items-center gap-3 p-2.5 rounded-lg transition-all whitespace-nowrap",
-              activeView === 'settings'
-                ? "bg-neutral-100 dark:bg-white/5 text-neutral-900 dark:text-white shadow-sm"
-                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.02]"
-            )}
-          >
-            <div className="flex-shrink-0"><Settings size={16} /></div>
-            {!isCollapsed && <span className="text-xs font-medium">{t('nav_settings')}</span>}
-          </button>
         </div>
       </div>
 

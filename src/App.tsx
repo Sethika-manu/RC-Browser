@@ -47,6 +47,7 @@ interface Session {
   url: string;
   isSleeping?: boolean;
   lastAccessed?: number;
+  side?: 'left' | 'right';
 }
 
 const getFileName = (path: string, url: string) => {
@@ -100,6 +101,10 @@ export default function App() {
     return null;
   });
   
+  const [isSplitScreen, setIsSplitScreen] = useState(false);
+  const [rightActiveSessionId, setRightActiveSessionId] = useState<string | null>(null);
+  const [focusedSide, setFocusedSide] = useState<'left' | 'right'>('left');
+
   const [searchValue, setSearchValue] = useState("");
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [appView, setAppView] = useState<'browser' | 'settings' | 'downloads' | 'tabs' | 'history' | 'extensions' | 'bookmarks'>('browser');
@@ -120,6 +125,8 @@ export default function App() {
   });
 
   const activeSession = sessions.find(s => s.id === activeSessionId);
+  const rightActiveSession = sessions.find(s => s.id === rightActiveSessionId);
+  const focusedSessionId = isSplitScreen && focusedSide === 'right' ? rightActiveSessionId : activeSessionId;
 
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -129,6 +136,7 @@ export default function App() {
 
   const sessionsRef = useRef(sessions);
   const activeSessionIdRef = useRef(activeSessionId);
+  const focusedSessionIdRef = useRef(focusedSessionId);
   const appViewRef = useRef(appView);
   const lastLoadedUrlRef = useRef<string | null>(null);
 
@@ -139,6 +147,10 @@ export default function App() {
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId;
   }, [activeSessionId]);
+
+  useEffect(() => {
+    focusedSessionIdRef.current = focusedSessionId;
+  }, [focusedSessionId]);
 
   useEffect(() => {
     appViewRef.current = appView;
@@ -177,7 +189,7 @@ export default function App() {
     const unlistenUrlPromise = listen('webview-url-changed', (event: any) => {
       const { label, url, title } = event.payload;
       
-      const currentActiveId = activeSessionIdRef.current;
+      const currentActiveId = focusedSessionIdRef.current;
       const currentAppView = appViewRef.current;
 
       setSessions(prev => prev.map(s => s.id === label ? { ...s, url, title: (url === "about:blank" || url === "") ? "New Tab" : title || url } : s));
@@ -213,11 +225,15 @@ export default function App() {
     window.addEventListener('rc-download-finished', handleHistoryUpdate);
 
     const handleRecreateWebview = () => {
-      const activeId = activeSessionIdRef.current;
+      const activeId = focusedSessionIdRef.current;
       if (activeId) {
         const newId = `session-${Math.random().toString(36).substring(7)}`;
         setSessions(prev => prev.map(s => s.id === activeId ? { ...s, id: newId } : s));
-        setActiveSessionId(newId);
+        if (isSplitScreen && rightActiveSessionId === activeId) {
+          setRightActiveSessionId(newId);
+        } else {
+          setActiveSessionId(newId);
+        }
       }
     };
     window.addEventListener('rc-recreate-active-webview', handleRecreateWebview);
@@ -257,7 +273,7 @@ export default function App() {
   useEffect(() => {
     if (isMobile) {
       (window as any).onNativeUrlChanged = (url: string) => {
-        const currentActiveId = activeSessionIdRef.current;
+        const currentActiveId = focusedSessionIdRef.current;
         const currentAppView = appViewRef.current;
 
         // If we are not in the browser view (e.g. settings, downloads, tabs)
@@ -423,12 +439,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (activeSession) {
-      setSearchValue((activeSession.url === "about:blank" || activeSession.url === "") ? "" : activeSession.url);
+    const currentFocusedActiveSession = isSplitScreen && focusedSide === 'right'
+      ? rightActiveSession
+      : activeSession;
+
+    if (currentFocusedActiveSession) {
+      setSearchValue((currentFocusedActiveSession.url === "about:blank" || currentFocusedActiveSession.url === "") ? "" : currentFocusedActiveSession.url);
     } else {
       setSearchValue("");
     }
-  }, [activeSessionId, activeSession?.url, appView]);
+  }, [activeSessionId, rightActiveSessionId, focusedSide, isSplitScreen, activeSession?.url, rightActiveSession?.url, appView]);
 
   // 1. Wake up the active tab when selected, and update its lastAccessed timestamp
   useEffect(() => {
@@ -443,6 +463,18 @@ export default function App() {
     }
   }, [activeSessionId]);
 
+  useEffect(() => {
+    if (rightActiveSessionId) {
+      setSessions(prev =>
+        prev.map(s =>
+          s.id === rightActiveSessionId
+            ? { ...s, isSleeping: false, lastAccessed: Date.now() }
+            : s
+        )
+      );
+    }
+  }, [rightActiveSessionId]);
+
   // 2. Periodic background check to sleep inactive tabs (PC Only)
   useEffect(() => {
     if (isMobile) return;
@@ -456,7 +488,8 @@ export default function App() {
         let changed = false;
         const nextSessions = prev.map(s => {
           const lastAcc = s.lastAccessed || now;
-          if (s.id !== activeSessionId && !s.isSleeping && (now - lastAcc) > threshold) {
+          const isCurrentlyActive = s.id === activeSessionId || (isSplitScreen && s.id === rightActiveSessionId);
+          if (!isCurrentlyActive && !s.isSleeping && (now - lastAcc) > threshold) {
             changed = true;
             return { ...s, isSleeping: true };
           }
@@ -467,7 +500,7 @@ export default function App() {
     }, 30000); // Check every 30 seconds
 
     return () => clearInterval(interval);
-  }, [isMobile, activeSessionId]);
+  }, [isMobile, activeSessionId, rightActiveSessionId, isSplitScreen]);
 
   const handleNavigate = async (url: string) => {
     let targetUrl = url.trim();
@@ -480,12 +513,14 @@ export default function App() {
       }
     }
 
-    if (!activeSessionId) {
+    const currentFocusedId = isSplitScreen && focusedSide === 'right' ? rightActiveSessionId : activeSessionId;
+
+    if (!currentFocusedId) {
       handleCreateSession(targetUrl);
       setAppView('browser');
       return;
     }
-    setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, url: targetUrl, title: (targetUrl === "about:blank" || targetUrl === "") ? "New Tab" : targetUrl } : s));
+    setSessions(prev => prev.map(s => s.id === currentFocusedId ? { ...s, url: targetUrl, title: (targetUrl === "about:blank" || targetUrl === "") ? "New Tab" : targetUrl } : s));
     setSearchValue(targetUrl);
 
     if (targetUrl && targetUrl !== "" && targetUrl !== "about:blank") {
@@ -503,7 +538,7 @@ export default function App() {
       }
     } else {
       if (targetUrl !== "" && targetUrl !== "about:blank") {
-        invoke("navigate_webview", { label: activeSessionId, url: targetUrl })
+        invoke("navigate_webview", { label: currentFocusedId, url: targetUrl })
           .catch((err) => console.warn("Failed to navigate on PC:", err));
       }
     }
@@ -517,6 +552,20 @@ export default function App() {
       isSleeping: false,
       lastAccessed: Date.now()
     };
+
+    if (isSplitScreen && focusedSide === 'right') {
+      newSession.side = 'right';
+      setSessions(prev => [...prev, newSession]);
+      setRightActiveSessionId(newSession.id);
+      setAppView('browser');
+
+      if (url && url !== "" && url !== "about:blank") {
+        recordSiteVisit(url);
+        logHistoryVisit(url);
+      }
+      return;
+    }
+
     setSessions(prev => [...prev, newSession]);
     setActiveSessionId(newSession.id);
     setAppView('browser');
@@ -540,16 +589,34 @@ export default function App() {
   const handleCloseSession = (id: string) => {
     setSessions(prev => {
       const filtered = prev.filter(s => s.id !== id);
+      
       if (activeSessionId === id) {
-        setActiveSessionId(filtered.length > 0 ? filtered[filtered.length - 1].id : null);
+        const leftSessionsList = filtered.filter(s => s.side !== 'right');
+        setActiveSessionId(leftSessionsList.length > 0 ? leftSessionsList[leftSessionsList.length - 1].id : null);
       }
+      
+      if (rightActiveSessionId === id) {
+        const rightSessionsList = filtered.filter(s => s.side === 'right');
+        setRightActiveSessionId(rightSessionsList.length > 0 ? rightSessionsList[rightSessionsList.length - 1].id : null);
+      }
+      
       return filtered;
     });
   };
 
   const handleGoHome = () => {
-    setActiveSessionId(null);
-    setSearchValue("");
+    const currentFocusedId = isSplitScreen && focusedSide === 'right' ? rightActiveSessionId : activeSessionId;
+    if (currentFocusedId) {
+      setSessions(prev => prev.map(s => s.id === currentFocusedId ? { ...s, url: "", title: "New Tab" } : s));
+      setSearchValue("");
+    } else {
+      if (isSplitScreen && focusedSide === 'right') {
+        setRightActiveSessionId(null);
+      } else {
+        setActiveSessionId(null);
+      }
+      setSearchValue("");
+    }
     setAppView('browser');
     if (isMobile) {
       lastLoadedUrlRef.current = null;
@@ -558,6 +625,57 @@ export default function App() {
         (win.NativeBridge || win.AndroidBridge).loadNativeUrl("");
       }
     }
+  };
+
+  const handleToggleSplitScreen = () => {
+    setIsSplitScreen(prev => {
+      const nextVal = !prev;
+      if (nextVal) {
+        // Turning ON split screen
+        let currentLeftId = activeSessionId;
+        if (!currentLeftId) {
+          currentLeftId = `session-${Math.random().toString(36).substring(7)}`;
+          const newLeftSession: Session = {
+            id: currentLeftId,
+            title: "New Tab",
+            url: "",
+            isSleeping: false,
+            lastAccessed: Date.now()
+          };
+          setSessions(curr => [...curr, newLeftSession]);
+          setActiveSessionId(currentLeftId);
+        }
+        
+        // Find if there is another session we can put on the right
+        const otherSession = sessions.find(s => s.id !== currentLeftId);
+        if (otherSession) {
+          // Assign it to the right
+          setSessions(curr => curr.map(s => s.id === otherSession.id ? { ...s, side: 'right' as const } : s));
+          setRightActiveSessionId(otherSession.id);
+        } else {
+          // No other session, create a new one for the right
+          const rightId = `session-${Math.random().toString(36).substring(7)}`;
+          const newSession: Session = {
+            id: rightId,
+            title: "New Tab",
+            url: "",
+            isSleeping: false,
+            lastAccessed: Date.now(),
+            side: 'right' as const
+          };
+          setSessions(curr => [...curr, newSession]);
+          setRightActiveSessionId(rightId);
+        }
+        setFocusedSide('left'); // Start focused on left
+      } else {
+        // Turning OFF split screen
+        // Reset all sessions to default side ('left')
+        setSessions(curr => curr.map(s => ({ ...s, side: undefined })));
+        setRightActiveSessionId(null);
+        setFocusedSide('left');
+      }
+      return nextVal;
+    });
   };
 
   const handleNavClick = (view: 'settings' | 'downloads' | 'tabs' | 'history' | 'extensions' | 'bookmarks') => {
@@ -583,25 +701,36 @@ export default function App() {
     }
   };
 
+  const leftSessions = sessions.filter(s => s.side !== 'right');
+  const rightSessions = sessions.filter(s => s.side === 'right');
+
   return (
     <motion.div 
       key="app"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.8 }}
-      className={`flex flex-col h-screen text-neutral-900 dark:text-white overflow-hidden font-sans transition-colors duration-200 ${appView === 'browser' && activeSessionId ? 'bg-transparent' : 'bg-white dark:bg-[#0a0a0a]'}`}
+      className={`flex flex-col h-screen text-neutral-900 dark:text-white overflow-hidden font-sans transition-colors duration-200 ${appView === 'browser' && focusedSessionId ? 'bg-transparent' : 'bg-white dark:bg-[#0a0a0a]'}`}
     >
       <div 
         id="top-bar-container"
-        className="w-full bg-white dark:bg-gray-900 border-b border-neutral-200 dark:border-white/5 flex-shrink-0 relative flex flex-col z-[50]"
+        className="w-full bg-white dark:bg-gray-900 border-b border-neutral-200 dark:border-white/5 flex-shrink-0 relative flex flex-col z-[99999]"
         style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
         <TitleBar 
           onNavigate={handleNavigate} 
           searchValue={searchValue}
           onSearchChange={setSearchValue}
-          activeSessionId={activeSessionId}
+          activeSessionId={isSplitScreen && focusedSide === 'right' ? rightActiveSessionId : activeSessionId}
           sessions={sessions}
+          isSplitScreen={isSplitScreen}
+          onToggleSplitScreen={handleToggleSplitScreen}
+          onDownloadsClick={() => handleNavClick('downloads')}
+          onBookmarksClick={() => handleNavClick('bookmarks')}
+          onHistoryClick={() => handleNavClick('history')}
+          onExtensionsClick={() => handleNavClick('extensions')}
+          onSettingsClick={() => handleNavClick('settings')}
+          activeView={appView}
         />
 
         <AnimatePresence>
@@ -669,10 +798,10 @@ export default function App() {
 
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-transparent overflow-hidden z-50">
           <AnimatePresence>
-            {(activeSessionId && (progressStates[activeSessionId] || 0) > 0) && (
+            {(focusedSessionId && (progressStates[focusedSessionId] || 0) > 0) && (
               <motion.div 
                 initial={{ width: '0%', opacity: 1 }}
-                animate={{ width: `${progressStates[activeSessionId]}%`, opacity: progressStates[activeSessionId] === 100 ? 0 : 1 }}
+                animate={{ width: `${progressStates[focusedSessionId]}%`, opacity: progressStates[focusedSessionId] === 100 ? 0 : 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3, ease: 'easeOut' }}
                 className="absolute left-0 top-0 h-full bg-accent shadow-[0_0_8px_rgba(var(--accent-rgb),0.8)]"
@@ -686,26 +815,78 @@ export default function App() {
         <div className="relative z-[100] hidden md:block">
           <Sidebar 
             sessions={sessions}
-            activeSessionId={activeSessionId}
-            onSessionSelect={(id) => { setActiveSessionId(id); setAppView('browser'); }}
+            activeSessionId={isSplitScreen && focusedSide === 'right' ? rightActiveSessionId : activeSessionId}
+            onSessionSelect={(id) => {
+              const selectedSession = sessions.find(s => s.id === id);
+              if (selectedSession) {
+                if (isSplitScreen && selectedSession.side === 'right') {
+                  setRightActiveSessionId(id);
+                  setFocusedSide('right');
+                } else {
+                  setActiveSessionId(id);
+                  setFocusedSide('left');
+                }
+                setAppView('browser');
+              }
+            }}
             onSessionClose={handleCloseSession}
             onNewSession={() => handleCreateSession()}
             onHomeClick={handleGoHome}
             onSearchClick={() => setIsPaletteOpen(true)}
-            onSettingsClick={() => handleNavClick('settings')}
-            onDownloadsClick={() => handleNavClick('downloads')}
-            onHistoryClick={() => handleNavClick('history')}
-            onExtensionsClick={() => handleNavClick('extensions')}
-            onBookmarksClick={() => handleNavClick('bookmarks')}
-            activeView={appView}
-            isDownloading={activeDownloads.length > 0} 
+            isSplitScreen={isSplitScreen}
           />
         </div>
         
         <main className="flex-1 relative overflow-hidden bg-transparent z-0 transition-colors duration-200">
-          <div className={`absolute inset-0 z-0 ${appView === 'browser' ? 'visible' : 'invisible pointer-events-none'}`}>
-            <Viewport sessions={sessions} activeSessionId={activeSessionId} isPaletteOpen={isPaletteOpen} appView={appView} />
-          </div>
+          {isSplitScreen ? (
+            <div className="absolute inset-0 flex divide-x divide-neutral-200 dark:divide-white/5 bg-white dark:bg-[#0a0a0a]">
+              {/* Left Column */}
+              <div 
+                onClickCapture={() => setFocusedSide('left')}
+                className={`relative flex-1 h-full overflow-hidden transition-all ${focusedSide === 'left' ? 'ring-2 ring-accent/30 ring-inset' : ''}`}
+              >
+                <div className={`absolute inset-0 z-0 ${appView === 'browser' ? 'visible' : 'invisible pointer-events-none'}`}>
+                  <Viewport 
+                    sessions={leftSessions} 
+                    activeSessionId={activeSessionId} 
+                    isPaletteOpen={isPaletteOpen} 
+                    appView={appView} 
+                  />
+                </div>
+                {appView === 'browser' && (!activeSessionId || (activeSession && (activeSession.url === "" || activeSession.url === "about:blank"))) && (
+                  <div className="absolute inset-0 z-20 bg-white dark:bg-[#0a0a0a] pointer-events-auto">
+                    <Home onNavigate={handleNavigate} />
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column */}
+              <div 
+                onClickCapture={() => setFocusedSide('right')}
+                className={`relative flex-1 h-full overflow-hidden transition-all ${focusedSide === 'right' ? 'ring-2 ring-accent/30 ring-inset' : ''}`}
+              >
+                <div className={`absolute inset-0 z-0 ${appView === 'browser' ? 'visible' : 'invisible pointer-events-none'}`}>
+                  <Viewport 
+                    sessions={rightSessions} 
+                    activeSessionId={rightActiveSessionId} 
+                    isPaletteOpen={isPaletteOpen} 
+                    appView={appView} 
+                  />
+                </div>
+                {appView === 'browser' && (!rightActiveSessionId || (rightActiveSession && (rightActiveSession.url === "" || rightActiveSession.url === "about:blank"))) && (
+                  <div className="absolute inset-0 z-20 bg-white dark:bg-[#0a0a0a] pointer-events-auto">
+                    <Home onNavigate={handleNavigate} />
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className={`absolute inset-0 z-0 ${appView === 'browser' ? 'visible' : 'invisible pointer-events-none'}`}>
+                <Viewport sessions={sessions} activeSessionId={activeSessionId} isPaletteOpen={isPaletteOpen} appView={appView} />
+              </div>
+            </>
+          )}
 
           <div className="absolute inset-0 z-10 pointer-events-none">
             {(() => {
@@ -730,7 +911,7 @@ export default function App() {
                   <Bookmarks isMobile={isMobile} onNavigate={(url) => { handleNavigate(url); setAppView('browser'); }} />
                 </div>
               );
-              if (appView === 'browser') {
+              if (appView === 'browser' && !isSplitScreen) {
                 const isHomeVisible = !activeSessionId || (activeSession && (activeSession.url === "" || activeSession.url === "about:blank"));
                 if (isHomeVisible) return <div className="absolute inset-0 z-20 bg-white dark:bg-[#0a0a0a] pointer-events-auto"><Home onNavigate={handleNavigate} /></div>;
               }
@@ -751,9 +932,18 @@ export default function App() {
                         {sessions.map(session => (
                           <div 
                             key={session.id} 
-                            onClick={() => { setActiveSessionId(session.id); setAppView('browser'); }} 
+                            onClick={() => {
+                              if (isSplitScreen && session.side === 'right') {
+                                setRightActiveSessionId(session.id);
+                                setFocusedSide('right');
+                              } else {
+                                setActiveSessionId(session.id);
+                                setFocusedSide('left');
+                              }
+                              setAppView('browser');
+                            }} 
                             className={`relative p-4 rounded-2xl flex flex-col gap-2 cursor-pointer transition-all ${
-                              activeSessionId === session.id 
+                              (isSplitScreen && session.side === 'right' ? rightActiveSessionId === session.id : activeSessionId === session.id) 
                                 ? 'bg-white dark:bg-neutral-900 border-2 border-accent shadow-md' 
                                 : 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm'
                             } ${session.isSleeping ? 'opacity-65 hover:opacity-90' : ''} pointer-events-auto`}

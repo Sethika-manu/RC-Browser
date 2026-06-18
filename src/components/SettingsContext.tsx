@@ -8,6 +8,7 @@ type Language = 'English (US)' | 'Sinhala (LK)' | 'Singlish';
 interface SettingsContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  isDarkMode: boolean;
   language: Language;
   setLanguage: (lang: Language) => void;
   privacyShield: boolean;
@@ -107,6 +108,12 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const [theme, setTheme] = useState<Theme>(() => 
     (localStorage.getItem('app-theme') as Theme) || 'System'
   );
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    const themeVal = (localStorage.getItem('app-theme') as Theme) || 'System';
+    return themeVal === 'System'
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+      : themeVal === 'Dark';
+  });
   const [language, setLanguage] = useState<Language>(() => 
     (localStorage.getItem('app-language') as Language) || 'English (US)'
   );
@@ -120,25 +127,73 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const root = document.documentElement;
+    const body = document.body;
     const themeValue = theme === 'System' 
       ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
       : theme.toLowerCase();
 
-    if (theme === 'Light') {
-      root.classList.remove('dark');
-    } else if (theme === 'Dark') {
+    const isDark = themeValue === 'dark';
+    setIsDarkMode(isDark);
+
+    if (isDark) {
       root.classList.add('dark');
-    } else if (theme === 'System') {
-      const isSystemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      root.classList.toggle('dark', isSystemDark);
+      body.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+      body.classList.remove('dark');
     }
     
     root.setAttribute('data-theme', themeValue);
-    root.style.colorScheme = themeValue === 'dark' ? 'dark' : 'light';
+    if (body) {
+      body.setAttribute('data-theme', themeValue);
+      body.style.colorScheme = isDark ? 'dark' : 'light';
+    }
+    root.style.colorScheme = isDark ? 'dark' : 'light';
     localStorage.setItem('app-theme', theme);
 
-    getCurrentWindow().setTheme(themeValue === 'dark' ? 'dark' : 'light')
+    getCurrentWindow().setTheme(isDark ? 'dark' : 'light')
       .catch((err) => console.warn("Failed to set native window theme:", err));
+
+    invoke('set_window_theme', { theme: isDark ? 'dark' : 'light' })
+      .catch((err) => console.warn("Failed to set native window theme via IPC:", err));
+  }, [theme]);
+
+  // Listener for dynamic system preference changes when theme is System
+  useEffect(() => {
+    if (theme !== 'System') return;
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (e: MediaQueryListEvent) => {
+      const root = document.documentElement;
+      const body = document.body;
+      const isDark = e.matches;
+      const themeValue = isDark ? 'dark' : 'light';
+      setIsDarkMode(isDark);
+
+      if (isDark) {
+        root.classList.add('dark');
+        if (body) body.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+        if (body) body.classList.remove('dark');
+      }
+
+      root.setAttribute('data-theme', themeValue);
+      root.style.colorScheme = themeValue;
+      if (body) {
+        body.setAttribute('data-theme', themeValue);
+        body.style.colorScheme = themeValue;
+      }
+
+      getCurrentWindow().setTheme(themeValue)
+        .catch((err) => console.warn("Failed to set native window theme on system change:", err));
+
+      invoke('set_window_theme', { theme: themeValue })
+        .catch((err) => console.warn("Failed to set native window theme via IPC on system change:", err));
+    };
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
 
   useEffect(() => {
@@ -199,6 +254,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   return (
     <SettingsContext.Provider value={{ 
       theme, setTheme, 
+      isDarkMode,
       language, setLanguage, 
       privacyShield, setPrivacyShield,
       autoHideSidebar, setAutoHideSidebar,

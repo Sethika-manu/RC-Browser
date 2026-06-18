@@ -14,19 +14,18 @@ export const Viewport = ({
   sessions,
   activeSessionId,
   isPaletteOpen,
-  appView
+  appView,
+  style
 }: {
   sessions: Session[],
   activeSessionId: string | null,
   isPaletteOpen: boolean,
-  appView: 'browser' | 'settings' | 'console' | 'downloads' | 'tabs' | 'history' | 'extensions' | 'bookmarks'
+  appView: 'browser' | 'settings' | 'console' | 'downloads' | 'tabs' | 'history' | 'extensions' | 'bookmarks',
+  style?: React.CSSProperties
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const initializedWebviews = useRef<Set<string>>(new Set());
-  const { theme } = useSettings();
-  const isDarkMode = theme === 'System'
-    ? window.matchMedia('(prefers-color-scheme: dark)').matches
-    : theme === 'Dark';
+  const { isDarkMode } = useSettings();
 
   const isMobileLayout = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
 
@@ -214,7 +213,7 @@ export const Viewport = ({
     <div 
       ref={containerRef} 
       className="absolute inset-0 bg-transparent flex items-center justify-center pointer-events-none z-0" 
-      style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+      style={{ colorScheme: isDarkMode ? 'dark' : 'light', ...style }}
     />
   );
 };

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  /* color-scheme is managed dynamically via SettingsContext */
 }
 
 body, html, #root {

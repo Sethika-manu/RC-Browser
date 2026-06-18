@@ -5,6 +5,7 @@ import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { CommandPalette } from "./components/CommandPalette";
 import { Viewport } from "./components/Viewport";
+import { useSettings } from "./components/SettingsContext";
 
 // Components
 import { Home, recordSiteVisit } from "./components/Home"; 
@@ -72,6 +73,19 @@ const getFileName = (path: string, url: string) => {
 };
 
 export default function App() {
+  const { isDarkMode } = useSettings();
+
+  useEffect(() => {
+    document.documentElement.style.colorScheme = isDarkMode ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
+    if (document.body) {
+      document.body.style.colorScheme = isDarkMode ? 'dark' : 'light';
+      document.body.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
+    }
+    invoke('set_window_theme', { theme: isDarkMode ? 'dark' : 'light' })
+      .catch((err) => console.warn("Failed to set native window theme via IPC:", err));
+  }, [isDarkMode]);
+
   const [sessions, setSessions] = useState<Session[]>(() => {
     if (localStorage.getItem('rc_restore_tabs') === 'true') {
       const saved = localStorage.getItem('rc_saved_sessions');
@@ -205,6 +219,12 @@ export default function App() {
       if (url && url !== "" && url !== "about:blank" && url.startsWith('http')) {
         logHistoryVisit(url, title).catch(err => console.error("History logging error:", err));
       }
+
+      // Sync theme on navigation load
+      const isDark = document.documentElement.classList.contains('dark');
+      const themeVal = isDark ? 'dark' : 'light';
+      invoke('set_webview_theme', { label, theme: themeVal })
+        .catch((e) => console.warn("Navigation Theme Sync Error:", e));
     });
 
     const unlistenTitlePromise = listen('webview-title-changed', (event: any) => {
@@ -871,20 +891,28 @@ export default function App() {
           </div>
         )}
         
-        <main className="flex-1 relative overflow-hidden bg-transparent z-0 transition-colors duration-200">
+        <main 
+          className="flex-1 relative overflow-hidden bg-transparent z-0 transition-colors duration-200"
+          style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+        >
           {isSplitScreen ? (
             <div className="absolute inset-0 flex divide-x divide-neutral-200 dark:divide-white/5 bg-white dark:bg-[#0a0a0a]">
               {/* Left Column */}
               <div 
                 onClickCapture={() => setFocusedSide('left')}
                 className={`relative flex-1 h-full overflow-hidden transition-all ${focusedSide === 'left' ? 'ring-2 ring-accent/30 ring-inset' : ''}`}
+                style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
               >
-                <div className={`absolute inset-0 z-0 ${appView === 'browser' ? 'visible' : 'invisible pointer-events-none'}`}>
+                <div 
+                  className={`absolute inset-0 z-0 ${appView === 'browser' ? 'visible' : 'invisible pointer-events-none'}`}
+                  style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+                >
                   <Viewport 
                     sessions={leftSessions} 
                     activeSessionId={activeSessionId} 
                     isPaletteOpen={isPaletteOpen} 
                     appView={appView} 
+                    style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
                   />
                 </div>
                 {appView === 'browser' && (!activeSessionId || (activeSession && (activeSession.url === "" || activeSession.url === "about:blank"))) && (
@@ -898,13 +926,18 @@ export default function App() {
               <div 
                 onClickCapture={() => setFocusedSide('right')}
                 className={`relative flex-1 h-full overflow-hidden transition-all ${focusedSide === 'right' ? 'ring-2 ring-accent/30 ring-inset' : ''}`}
+                style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
               >
-                <div className={`absolute inset-0 z-0 ${appView === 'browser' ? 'visible' : 'invisible pointer-events-none'}`}>
+                <div 
+                  className={`absolute inset-0 z-0 ${appView === 'browser' ? 'visible' : 'invisible pointer-events-none'}`}
+                  style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+                >
                   <Viewport 
                     sessions={rightSessions} 
                     activeSessionId={rightActiveSessionId} 
                     isPaletteOpen={isPaletteOpen} 
                     appView={appView} 
+                    style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
                   />
                 </div>
                 {appView === 'browser' && (!rightActiveSessionId || (rightActiveSession && (rightActiveSession.url === "" || rightActiveSession.url === "about:blank"))) && (
@@ -915,10 +948,25 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div className="absolute inset-0 flex bg-white dark:bg-[#0a0a0a]">
-              <div className="relative flex-1 h-full overflow-hidden z-0">
-                <div className={`absolute inset-0 z-0 ${appView === 'browser' ? 'visible' : 'invisible pointer-events-none'}`}>
-                  <Viewport sessions={sessions} activeSessionId={activeSessionId} isPaletteOpen={isPaletteOpen} appView={appView} />
+            <div 
+              className="absolute inset-0 flex bg-white dark:bg-[#0a0a0a]"
+              style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+            >
+              <div 
+                className="relative flex-1 h-full overflow-hidden z-0"
+                style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+              >
+                <div 
+                  className={`absolute inset-0 z-0 ${appView === 'browser' ? 'visible' : 'invisible pointer-events-none'}`}
+                  style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+                >
+                  <Viewport 
+                    sessions={sessions} 
+                    activeSessionId={activeSessionId} 
+                    isPaletteOpen={isPaletteOpen} 
+                    appView={appView} 
+                    style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+                  />
                 </div>
               </div>
             </div>

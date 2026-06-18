@@ -430,6 +430,73 @@ async fn open_webview(
             webview_builder = webview_builder.initialization_script(&extensions_js);
         }
 
+        let is_dark = theme == "dark";
+        let theme_init_js = format!(
+            r#"
+            (function() {{
+                const isDark = {};
+                
+                function applyTheme() {{
+                    if (document.documentElement) {{
+                        document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+                        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+                        if (isDark) {{
+                            document.documentElement.classList.add('dark');
+                        }} else {{
+                            document.documentElement.classList.remove('dark');
+                        }}
+                    }}
+                    if (document.body) {{
+                        document.body.style.colorScheme = isDark ? 'dark' : 'light';
+                        document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
+                        if (isDark) {{
+                            document.body.classList.add('dark');
+                        }} else {{
+                            document.body.classList.remove('dark');
+                        }}
+                    }}
+                }}
+
+                applyTheme();
+                window.addEventListener('DOMContentLoaded', applyTheme);
+                window.addEventListener('load', applyTheme);
+
+                if (!window.__originalMatchMedia) {{
+                    window.__originalMatchMedia = window.matchMedia;
+                }}
+                window.matchMedia = function(query) {{
+                    if (query.includes('prefers-color-scheme')) {{
+                        if (query.includes('dark')) {{
+                            return {{
+                                matches: isDark,
+                                media: query,
+                                onchange: null,
+                                addListener: function() {{}},
+                                removeListener: function() {{}},
+                                addEventListener: function() {{}},
+                                removeEventListener: function() {{}}
+                            }};
+                        }}
+                        if (query.includes('light')) {{
+                            return {{
+                                matches: !isDark,
+                                media: query,
+                                onchange: null,
+                                addListener: function() {{}},
+                                removeListener: function() {{}},
+                                addEventListener: function() {{}},
+                                removeEventListener: function() {{}}
+                            }};
+                        }}
+                    }}
+                    return window.__originalMatchMedia.apply(this, arguments);
+                }};
+            }})();
+            "#,
+            is_dark
+        );
+        webview_builder = webview_builder.initialization_script(&theme_init_js);
+
         webview_builder = webview_builder.initialization_script(&format!(
             r#"
             (function() {{
@@ -1140,12 +1207,64 @@ async fn set_webview_theme(app: AppHandle, label: String, theme: String) -> Resu
     #[cfg(desktop)]
     {
         if let Some(webview) = app.get_webview(&label) {
-            let js = if theme == "dark" {
-                "document.documentElement.classList.add('dark');"
-            } else {
-                "document.documentElement.classList.remove('dark');"
-            };
-            let _ = webview.eval(js);
+            let is_dark = theme == "dark";
+            let js = format!(
+                r#"
+                (function() {{
+                    const isDark = {};
+                    if (document.documentElement) {{
+                        document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+                        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+                        if (isDark) {{
+                            document.documentElement.classList.add('dark');
+                        }} else {{
+                            document.documentElement.classList.remove('dark');
+                        }}
+                    }}
+                    if (document.body) {{
+                        document.body.style.colorScheme = isDark ? 'dark' : 'light';
+                        document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
+                        if (isDark) {{
+                            document.body.classList.add('dark');
+                        }} else {{
+                            document.body.classList.remove('dark');
+                        }}
+                    }}
+                    if (!window.__originalMatchMedia) {{
+                        window.__originalMatchMedia = window.matchMedia;
+                    }}
+                    window.matchMedia = function(query) {{
+                        if (query.includes('prefers-color-scheme')) {{
+                            if (query.includes('dark')) {{
+                                return {{
+                                    matches: isDark,
+                                    media: query,
+                                    onchange: null,
+                                    addListener: function() {{}},
+                                    removeListener: function() {{}},
+                                    addEventListener: function() {{}},
+                                    removeEventListener: function() {{}}
+                                }};
+                            }}
+                            if (query.includes('light')) {{
+                                return {{
+                                    matches: !isDark,
+                                    media: query,
+                                    onchange: null,
+                                    addListener: function() {{}},
+                                    removeListener: function() {{}},
+                                    addEventListener: function() {{}},
+                                    removeEventListener: function() {{}}
+                                }};
+                            }}
+                        }}
+                        return window.__originalMatchMedia.apply(this, arguments);
+                    }};
+                }})();
+                "#,
+                is_dark
+            );
+            let _ = webview.eval(&js);
         }
     }
     #[cfg(mobile)]
@@ -1156,6 +1275,26 @@ async fn set_webview_theme(app: AppHandle, label: String, theme: String) -> Resu
     }
     Ok(())
 }
+
+#[tauri::command]
+async fn set_window_theme(window: tauri::Window, theme: String) -> Result<(), String> {
+    #[cfg(desktop)]
+    {
+        let tauri_theme = if theme == "dark" {
+            tauri::Theme::Dark
+        } else {
+            tauri::Theme::Light
+        };
+        let _ = window.set_theme(Some(tauri_theme));
+    }
+    #[cfg(mobile)]
+    {
+        let _ = window;
+        let _ = theme;
+    }
+    Ok(())
+}
+
 
 #[tauri::command]
 async fn go_back(app: AppHandle, label: String) -> Result<(), String> {
@@ -1308,7 +1447,8 @@ pub fn run() {
             get_cosmetic_rules,
             report_webview_navigation,
             sync_extensions,
-            set_proxy_config
+            set_proxy_config,
+            set_window_theme
         ])
         .setup(|app| {
             use tauri::Listener;

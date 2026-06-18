@@ -734,7 +734,7 @@ export default function App() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.8 }}
-      className={`flex flex-col h-screen text-neutral-900 dark:text-white overflow-hidden font-sans transition-colors duration-200 ${appView === 'browser' && focusedSessionId ? 'bg-transparent' : 'bg-white dark:bg-[#0a0a0a]'}`}
+      className={`flex flex-col h-screen text-neutral-900 dark:text-white overflow-hidden font-sans transition-colors duration-200 isolate ${appView === 'browser' && focusedSessionId ? 'bg-transparent' : 'bg-white dark:bg-[#0a0a0a]'}`}
     >
       {!isZenMode && (
         <div 
@@ -915,11 +915,13 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <>
-              <div className={`absolute inset-0 z-0 ${appView === 'browser' ? 'visible' : 'invisible pointer-events-none'}`}>
-                <Viewport sessions={sessions} activeSessionId={activeSessionId} isPaletteOpen={isPaletteOpen} appView={appView} />
+            <div className="absolute inset-0 flex bg-white dark:bg-[#0a0a0a]">
+              <div className="relative flex-1 h-full overflow-hidden z-0">
+                <div className={`absolute inset-0 z-0 ${appView === 'browser' ? 'visible' : 'invisible pointer-events-none'}`}>
+                  <Viewport sessions={sessions} activeSessionId={activeSessionId} isPaletteOpen={isPaletteOpen} appView={appView} />
+                </div>
               </div>
-            </>
+            </div>
           )}
 
           <div className="absolute inset-0 z-10 pointer-events-none">
@@ -1308,7 +1310,7 @@ export default function App() {
       {/* Zen Mode Floating Timer Overlay */}
       {isZenMode && (
         <div 
-          className="fixed bottom-6 right-6 bg-white/80 dark:bg-black/85 backdrop-blur-xl border border-neutral-200/50 dark:border-white/10 rounded-2xl shadow-2xl p-4 flex items-center gap-4 z-[999999] pointer-events-auto select-none transition-all duration-300 hover:shadow-purple-500/10 hover:border-purple-500/20"
+          className="fixed bottom-12 right-4 bg-white/80 dark:bg-black/85 backdrop-blur-xl border border-neutral-200/50 dark:border-white/10 rounded-2xl shadow-2xl p-4 flex items-center gap-4 z-[999999] pointer-events-auto select-none transition-all duration-300 hover:shadow-purple-500/10 hover:border-purple-500/20"
           style={{ boxShadow: "0 20px 40px -5px rgba(0, 0, 0, 0.3)" }}
         >
           <div className="flex items-center gap-2">

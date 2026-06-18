@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettings } from "./SettingsContext";
 
@@ -29,6 +29,19 @@ export const Viewport = ({
     : theme === 'Dark';
 
   const isMobileLayout = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+
+  const [dropdownWidth, setDropdownWidth] = useState(0);
+
+  useEffect(() => {
+    const handleDropdownActive = (e: Event) => {
+      const customEvent = e as CustomEvent<{ active: boolean; width?: number }>;
+      setDropdownWidth(customEvent.detail?.active ? (customEvent.detail.width || 0) : 0);
+    };
+    window.addEventListener('rc-dropdown-active', handleDropdownActive);
+    return () => {
+      window.removeEventListener('rc-dropdown-active', handleDropdownActive);
+    };
+  }, []);
 
   // 1. Sync theme across all active webviews
   useEffect(() => {
@@ -68,9 +81,12 @@ export const Viewport = ({
         const scale = window.devicePixelRatio || 1.0;
         const rect = containerRef.current.getBoundingClientRect();
         
+        const widthAdjustment = isMobileLayout ? 0 : dropdownWidth;
+        const adjustedWidth = Math.max(100, rect.width - widthAdjustment);
+        
         const physX = Math.round(rect.x * scale);
         const physY = Math.round(rect.y * scale);
-        const physWidth = Math.round(rect.width * scale);
+        const physWidth = Math.round(adjustedWidth * scale);
         const physHeight = Math.round(rect.height * scale);
 
         if (physWidth <= 0 || physHeight <= 0) {
@@ -179,7 +195,7 @@ export const Viewport = ({
     return () => {
       observer.disconnect();
     };
-  }, [sessions, activeSessionId, isPaletteOpen, appView]);
+  }, [sessions, activeSessionId, isPaletteOpen, appView, dropdownWidth]);
 
 
 

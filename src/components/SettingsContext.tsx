@@ -125,75 +125,115 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     localStorage.getItem('app-auto-hide-sidebar') === 'true'
   );
 
-  useEffect(() => {
-    const root = document.documentElement;
-    const body = document.body;
-    const themeValue = theme === 'System' 
-      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-      : theme.toLowerCase();
-
-    const isDark = themeValue === 'dark';
-    setIsDarkMode(isDark);
-
-    if (isDark) {
-      root.classList.add('dark');
-      body.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-      body.classList.remove('dark');
+  const [appWindow] = useState(() => {
+    if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+      try {
+        return getCurrentWindow();
+      } catch (err) {
+        console.warn("Tauri window API not available:", err);
+      }
     }
-    
-    root.setAttribute('data-theme', themeValue);
-    if (body) {
-      body.setAttribute('data-theme', themeValue);
-      body.style.colorScheme = isDark ? 'dark' : 'light';
-    }
-    root.style.colorScheme = isDark ? 'dark' : 'light';
-    localStorage.setItem('app-theme', theme);
+    return null;
+  });
 
-    getCurrentWindow().setTheme(isDark ? 'dark' : 'light')
-      .catch((err) => console.warn("Failed to set native window theme:", err));
-
-    invoke('set_window_theme', { theme: isDark ? 'dark' : 'light' })
-      .catch((err) => console.warn("Failed to set native window theme via IPC:", err));
-  }, [theme]);
-
-  // Listener for dynamic system preference changes when theme is System
   useEffect(() => {
-    if (theme !== 'System') return;
+    let active = true;
+    let unlistenFn: (() => void) | null = null;
 
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e: MediaQueryListEvent) => {
-      const root = document.documentElement;
-      const body = document.body;
-      const isDark = e.matches;
-      const themeValue = isDark ? 'dark' : 'light';
+    const applyTheme = async (preference: string) => {
+      const pref = preference.toLowerCase();
+      let resolvedTheme = 'light';
+
+      if (pref === 'system') {
+        let detectedTheme = null;
+        if (appWindow) {
+          try {
+            detectedTheme = await appWindow.theme();
+          } catch (err) {
+            console.warn("Failed to get native window theme:", err);
+          }
+        }
+        if (detectedTheme) {
+          resolvedTheme = detectedTheme;
+        } else {
+          resolvedTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+      } else {
+        resolvedTheme = pref;
+      }
+
+      if (!active) return;
+
+      const isDark = resolvedTheme === 'dark';
       setIsDarkMode(isDark);
 
-      if (isDark) {
-        root.classList.add('dark');
-        if (body) body.classList.add('dark');
-      } else {
-        root.classList.remove('dark');
-        if (body) body.classList.remove('dark');
-      }
+      const root = document.documentElement;
+      const body = document.body;
 
-      root.setAttribute('data-theme', themeValue);
-      root.style.colorScheme = themeValue;
+      root.classList.toggle('dark', isDark);
       if (body) {
-        body.setAttribute('data-theme', themeValue);
-        body.style.colorScheme = themeValue;
+        body.classList.toggle('dark', isDark);
+        body.style.colorScheme = resolvedTheme;
+        body.setAttribute('data-theme', resolvedTheme);
       }
+      root.style.colorScheme = resolvedTheme;
+      root.setAttribute('data-theme', resolvedTheme);
 
-      getCurrentWindow().setTheme(themeValue)
-        .catch((err) => console.warn("Failed to set native window theme on system change:", err));
-
-      invoke('set_window_theme', { theme: themeValue })
-        .catch((err) => console.warn("Failed to set native window theme via IPC on system change:", err));
+      if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+        invoke('set_window_theme', { theme: resolvedTheme })
+          .catch((err) => console.warn("Failed to set window theme via IPC:", err));
+        
+        if (appWindow) {
+          try {
+            appWindow.setTheme(resolvedTheme as any)
+              .catch((err) => console.warn("Failed to set native window theme:", err));
+          } catch (err) {
+            console.warn("Failed to set native theme:", err);
+          }
+        }
+      }
     };
 
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
+    const setupListeners = async () => {
+      if (appWindow) {
+        try {
+          const unlisten = await appWindow.onThemeChanged(({ payload }) => {
+            if (theme.toLowerCase() === 'system') {
+              applyTheme(payload);
+            }
+          });
+          if (active) {
+            unlistenFn = unlisten;
+          } else {
+            unlisten();
+          }
+          return;
+        } catch (err) {
+          console.warn("Failed to register native theme change listener:", err);
+        }
+      }
+
+      // Fallback for non-desktop environments (Mobile/Web)
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = () => {
+        if (theme.toLowerCase() === 'system') {
+          applyTheme('system');
+        }
+      };
+      mediaQuery.addEventListener('change', handleChange);
+      unlistenFn = () => mediaQuery.removeEventListener('change', handleChange);
+    };
+
+    applyTheme(theme);
+    localStorage.setItem('app-theme', theme);
+    setupListeners();
+
+    return () => {
+      active = false;
+      if (unlistenFn) {
+        unlistenFn();
+      }
+    };
   }, [theme]);
 
   useEffect(() => {

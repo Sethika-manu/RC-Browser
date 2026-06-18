@@ -14,6 +14,7 @@ import { Downloads } from "./components/Downloads";
 import { History } from "./components/History";
 import { Extensions } from "./components/Extensions";
 import { Bookmarks } from "./components/Bookmarks";
+import { WorkspacePanel } from "./components/WorkspacePanel";
 import { syncExtensionsToRust } from "./lib/extensionsDb"; //all
 
 
@@ -147,6 +148,7 @@ export default function App() {
   const focusedSessionId = isSplitScreen && focusedSide === 'right' ? rightActiveSessionId : activeSessionId;
 
   const [isMobile, setIsMobile] = useState(false);
+  const [showWorkspaces, setShowWorkspaces] = useState(false);
   useEffect(() => {
     const checkMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     setIsMobile(checkMobile);
@@ -775,6 +777,7 @@ export default function App() {
             onHistoryClick={() => handleNavClick('history')}
             onExtensionsClick={() => handleNavClick('extensions')}
             onSettingsClick={() => handleNavClick('settings')}
+            onWorkspacesClick={() => setShowWorkspaces(prev => !prev)}
             activeView={appView}
             isZenMode={isZenMode}
             onToggleZenMode={() => {
@@ -1057,6 +1060,32 @@ export default function App() {
             })()}
           </div>
         </main>
+
+        <AnimatePresence>
+          {(showWorkspaces && !isMobile) && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 340, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              onUpdate={() => window.dispatchEvent(new Event('resize'))}
+              onAnimationComplete={() => window.dispatchEvent(new Event('resize'))}
+              className="h-full bg-white dark:bg-[#0a0a0a] border-l border-neutral-200 dark:border-white/5 flex flex-col relative z-20 flex-shrink-0 overflow-hidden"
+            >
+              <WorkspacePanel
+                sessions={sessions}
+                setSessions={setSessions}
+                setActiveSessionId={setActiveSessionId}
+                setIsSplitScreen={setIsSplitScreen}
+                setRightActiveSessionId={setRightActiveSessionId}
+                setFocusedSide={setFocusedSide}
+                setSearchValue={setSearchValue}
+                setAppView={setAppView}
+                onClose={() => setShowWorkspaces(false)}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
 

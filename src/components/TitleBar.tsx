@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw, Home, Star, Shield, Mail, RefreshCw, Trash2, ExternalLink, Loader2, Columns, Timer, MoreVertical, Puzzle, Settings, History as HistoryIcon, Download, Link2 } from "lucide-react";
+import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw, Home, Star, Shield, Mail, RefreshCw, Trash2, ExternalLink, Loader2, Columns, Timer, MoreVertical, Puzzle, Settings, History as HistoryIcon, Download, Link2, Layers } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { generateEmail, getInbox, getMessageDetails, TempMailMessage, TempMailDetails } from "../lib/tempMail";
@@ -72,6 +72,7 @@ interface TitleBarProps {
   onHistoryClick?: () => void;
   onExtensionsClick?: () => void;
   onSettingsClick?: () => void;
+  onWorkspacesClick?: () => void;
   activeView?: string;
   isZenMode?: boolean;
   onToggleZenMode?: () => void;
@@ -90,6 +91,7 @@ export const TitleBar = ({
   onHistoryClick,
   onExtensionsClick,
   onSettingsClick,
+  onWorkspacesClick,
   activeView,
   isZenMode = false,
   onToggleZenMode
@@ -1040,6 +1042,19 @@ export const TitleBar = ({
       >
         <Puzzle size={14} />
         <span>Extensions</span>
+      </button>
+
+      <button
+        onClick={() => {
+          onWorkspacesClick?.();
+          setShowMenu(false);
+        }}
+        className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors text-left ${
+          activeView === 'workspaces' ? "text-accent bg-accent/5" : "text-neutral-700 dark:text-neutral-300"
+        }`}
+      >
+        <Layers size={14} />
+        <span>Workspaces</span>
       </button>
 
       <button

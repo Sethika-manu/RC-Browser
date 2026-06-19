@@ -1,0 +1,37 @@
+name: Build macOS App (Manual)
+
+# 'workflow_dispatch' කියන්නේ ඔයාට ඕනෙ වෙලාවට GitHub එකෙන් Manual Button එකක් ඔබලා මේක Run කරන්න පුළුවන් කියන එකයි.
+on:
+  workflow_dispatch: 
+
+jobs:
+  build-mac:
+    runs-on: macos-latest # GitHub එකෙන් Mac Machine එකක් ගන්නවා
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        run: npm install # ඔයා පාවිච්චි කරන්නේ yarn නම් මේක 'yarn install' කියලා වෙනස් කරන්න
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust Dependencies
+        uses: swatinem/rust-cache@v2
+
+      - name: Build Tauri macOS app
+        run: npm run tauri build
+
+      - name: Upload macOS Installer (.dmg)
+        uses: actions/upload-artifact@v4
+        with:
+          name: RC-Browser-Mac-Installer
+          # Tauri වලින් Mac Installer එක හදන සාමාන්‍ය Path එක
+          path: src-tauri/target/release/bundle/dmg/*.dmg

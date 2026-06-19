@@ -1,8 +1,10 @@
-name: Build macOS App (Manual)
+name: Build macOS App (Auto Branch Build)
 
-# 'workflow_dispatch' කියන්නේ ඔයාට ඕනෙ වෙලාවට GitHub එකෙන් Manual Button එකක් ඔබලා මේක Run කරන්න පුළුවන් කියන එකයි.
+# ඔයා දැනට වැඩ කරන branch එකට push කරපු ගමන් ඉබේම build එක දුවන්න මෙතන push trigger එක දැම්මා
 on:
-  workflow_dispatch: 
+  push:
+    branches:
+      - test-branch-v1.3.4 # ⚠️ වැදගත්: මෙතන 'your-branch-name' වෙනුවට ඔයා දැනට push කරන branch එකේ නම හරියටම ටයිප් කරන්න (e.g., dev, dev-web වගේ)
 
 jobs:
   build-mac:

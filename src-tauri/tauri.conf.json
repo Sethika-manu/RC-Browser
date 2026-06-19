@@ -28,10 +28,7 @@
   "bundle": {
     "active": true,
     "publisher": "Royal Codex Software Solutions",
-    "targets": [
-      "msi",
-      "nsis"
-    ],
+    "targets": "all",
     "icon": [
       "icons/32x32.png",
       "icons/64x64.png",

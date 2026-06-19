@@ -33,9 +33,10 @@ jobs:
           chmod +x node_modules/.bin/*
           npm run tauri build
 
-      - name: Upload macOS Bundle
+      - name: Upload macOS Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: RC-Browser-Mac-Bundle
-          # dmg ෆෝල්ඩර් එකට විතරක් ලොක් කරන්නේ නැතුව, සම්පූර්ණ bundle ෆෝල්ඩර් එකම ගන්නවා
-          path: src-tauri/target/release/bundle/
+          name: RC-Browser-Mac-Release
+          path: |
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/macos/*.app

@@ -4,7 +4,7 @@ name: Build macOS App (Auto Branch Build)
 on:
   push:
     branches:
-      - test-branch-v1.3.4 # ⚠️ වැදගත්: මෙතන 'your-branch-name' වෙනුවට ඔයා දැනට push කරන branch එකේ නම හරියටම ටයිප් කරන්න (e.g., dev, dev-web වගේ)
+      - test-branch-v1.3.4
 
 jobs:
   build-mac:
@@ -20,7 +20,7 @@ jobs:
           node-version: '24'
 
       - name: Install frontend dependencies
-        run: npm install # ඔයා පාවිච්චි කරන්නේ yarn නම් මේක 'yarn install' කියලා වෙනස් කරන්න
+        run: npm install
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -33,9 +33,9 @@ jobs:
           chmod +x node_modules/.bin/*
           npm run tauri build
 
-      - name: Upload macOS Installer (.dmg)
+      - name: Upload macOS Bundle
         uses: actions/upload-artifact@v4
         with:
-          name: RC-Browser-Mac-Installer
-          # Tauri වලින් Mac Installer එක හදන සාමාන්‍ය Path එක
-          path: src-tauri/target/release/bundle/dmg/*.dmg
+          name: RC-Browser-Mac-Bundle
+          # dmg ෆෝල්ඩර් එකට විතරක් ලොක් කරන්නේ නැතුව, සම්පූර්ණ bundle ෆෝල්ඩර් එකම ගන්නවා
+          path: src-tauri/target/release/bundle/

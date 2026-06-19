@@ -17,7 +17,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install frontend dependencies
         run: npm install # ඔයා පාවිච්චි කරන්නේ yarn නම් මේක 'yarn install' කියලා වෙනස් කරන්න
@@ -29,7 +29,9 @@ jobs:
         uses: swatinem/rust-cache@v2
 
       - name: Build Tauri macOS app
-        run: npm run tauri build
+        run: |
+          chmod +x node_modules/.bin/tauri
+          npm run tauri build
 
       - name: Upload macOS Installer (.dmg)
         uses: actions/upload-artifact@v4

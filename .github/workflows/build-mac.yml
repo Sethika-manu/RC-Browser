@@ -30,7 +30,7 @@ jobs:
 
       - name: Build Tauri macOS app
         run: |
-          chmod +x node_modules/.bin/tauri
+          chmod +x node_modules/.bin/*
           npm run tauri build
 
       - name: Upload macOS Installer (.dmg)

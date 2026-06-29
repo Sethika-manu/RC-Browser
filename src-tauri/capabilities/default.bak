@@ -10,7 +10,6 @@
   ],
   "permissions": [
     "core:default",
-    "allow-all-commands",
     "dialog:default",
     {
       "identifier": "core:webview:allow-create-webview",

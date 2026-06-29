@@ -525,6 +525,30 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Allows all custom commands in the main app",
+          "type": "string",
+          "const": "allow-all-commands",
+          "markdownDescription": "Allows all custom commands in the main app"
+        },
+        {
+          "description": "Allows invoking get_cosmetic_rules command",
+          "type": "string",
+          "const": "allow-get-cosmetic-rules",
+          "markdownDescription": "Allows invoking get_cosmetic_rules command"
+        },
+        {
+          "description": "Allows invoking report_open_new_tab command",
+          "type": "string",
+          "const": "allow-report-open-new-tab",
+          "markdownDescription": "Allows invoking report_open_new_tab command"
+        },
+        {
+          "description": "Allows invoking report_webview_navigation command",
+          "type": "string",
+          "const": "allow-report-webview-navigation",
+          "markdownDescription": "Allows invoking report_webview_navigation command"
+        },
+        {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",
           "type": "string",
           "const": "core:default",

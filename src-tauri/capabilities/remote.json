@@ -1,0 +1,22 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "remote-permissions",
+  "description": "Permissions for remote webviews",
+  "windows": ["*"],
+  "webviews": ["*"],
+  "remote": {
+    "urls": [
+      "http://*/*",
+      "https://*/*",
+      "http://**",
+      "https://**"
+    ]
+  },
+  "permissions": [
+    "core:default",
+    "core:webview:allow-internal-toggle-devtools",
+    "allow-report-open-new-tab",
+    "allow-get-cosmetic-rules",
+    "allow-report-webview-navigation"
+  ]
+}

@@ -1,0 +1,45 @@
+"$schema" = "schemas/permission.schema.json"
+
+[[permission]]
+identifier = "allow-all-commands"
+description = "Allows all custom commands in the main app"
+[permission.commands]
+allow = [
+    "greet",
+    "open_webview",
+    "close_webview",
+    "set_webview_bounds",
+    "set_webview_theme",
+    "get_system_metrics",
+    "go_back",
+    "go_forward",
+    "reload_webview",
+    "navigate_webview",
+    "resize_browser_webview",
+    "trigger_download",
+    "set_privacy_shield",
+    "get_cosmetic_rules",
+    "report_webview_navigation",
+    "report_open_new_tab",
+    "sync_extensions",
+    "set_proxy_config",
+    "set_window_theme"
+]
+
+[[permission]]
+identifier = "allow-report-open-new-tab"
+description = "Allows invoking report_open_new_tab command"
+[permission.commands]
+allow = ["report_open_new_tab"]
+
+[[permission]]
+identifier = "allow-get-cosmetic-rules"
+description = "Allows invoking get_cosmetic_rules command"
+[permission.commands]
+allow = ["get_cosmetic_rules"]
+
+[[permission]]
+identifier = "allow-report-webview-navigation"
+description = "Allows invoking report_webview_navigation command"
+[permission.commands]
+allow = ["report_webview_navigation"]

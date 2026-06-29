@@ -331,6 +331,59 @@ async fn open_webview(
             tauri::webview::NewWindowResponse::Deny
         });
 
+        // Intercept target="_blank" links and window.open to open them internally
+        webview_builder = webview_builder.initialization_script(r#"
+            (function() {
+                // Intercept global click on <a> tags with target="_blank"
+                document.addEventListener('click', function(e) {
+                    try {
+                        if (e.defaultPrevented) return;
+                        var target = e.target;
+                        if (target && typeof target.closest === 'function') {
+                            var link = target.closest('a');
+                            if (link && link.getAttribute('target') === '_blank') {
+                                var href = link.href;
+                                if (href) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const invokeFn = window.__TAURI__?.core?.invoke || window.__TAURI_INTERNALS__?.invoke;
+                                    if (invokeFn) {
+                                        invokeFn("report_open_new_tab", { url: href });
+                                    }
+                                }
+                            }
+                        }
+                    } catch(err) {
+                        console.error("Error intercepting target_blank click:", err);
+                    }
+                }, true);
+
+                // Intercept window.open
+                const originalWindowOpen = window.open;
+                window.open = function(url, name, specs) {
+                    try {
+                        var targetUrl = url || "about:blank";
+                        var absoluteUrl = new URL(targetUrl, window.location.href).href;
+                        const invokeFn = window.__TAURI__?.core?.invoke || window.__TAURI_INTERNALS__?.invoke;
+                        if (invokeFn) {
+                            invokeFn("report_open_new_tab", { url: absoluteUrl });
+                            return {
+                                closed: false,
+                                document: { write: function() {}, close: function() {} },
+                                focus: function() {},
+                                blur: function() {},
+                                close: function() {},
+                                location: { href: "" }
+                            };
+                        }
+                    } catch(e) {
+                        console.error("Error intercepting window.open:", e);
+                    }
+                    return originalWindowOpen.apply(this, arguments);
+                };
+            })();
+        "#);
+
         #[cfg(not(target_os = "android"))]
         {
             // Set a persistent data directory for webviews to save cookies, local storage, and active sessions
@@ -503,6 +556,19 @@ async fn open_webview(
                 window.__privacyShieldOn = {};
                 const initialCosmeticCss = {};
                 window.__webviewLabel = "{}";
+
+                function safeAppendStyle(styleElement) {{
+                    const parent = document.head || document.documentElement;
+                    if (parent) {{
+                        parent.appendChild(styleElement);
+                    }} else {{
+                        document.addEventListener('DOMContentLoaded', function() {{
+                            const p = document.head || document.documentElement;
+                            if (p) p.appendChild(styleElement);
+                        }});
+                    }}
+                }}
+                
                 
                 const adPatterns = [
                     "doubleclick", "googlesyndication", "googletagmanager", "googletagservices",
@@ -688,7 +754,7 @@ async fn open_webview(
                         if (!style) {{
                             style = document.createElement('style');
                             style.id = styleId;
-                            (document.head || document.documentElement).appendChild(style);
+                            safeAppendStyle(style);
                         }}
                         if (style.innerHTML !== initialCosmeticCss) {{
                             style.innerHTML = initialCosmeticCss;
@@ -701,7 +767,7 @@ async fn open_webview(
                     if (!uniStyle) {{
                         uniStyle = document.createElement('style');
                         uniStyle.id = uniStyleId;
-                        (document.head || document.documentElement).appendChild(uniStyle);
+                        safeAppendStyle(uniStyle);
                     }}
                     const uniRules = universalCss + ' {{ display: none !important; visibility: hidden !important; opacity: 0 !important; height: 0 !important; width: 0 !important; pointer-events: none !important; }}';
                     if (uniStyle.innerHTML !== uniRules) {{
@@ -740,7 +806,7 @@ async fn open_webview(
                             if (!style) {{
                                 style = document.createElement('style');
                                 style.id = styleId;
-                                (document.head || document.documentElement).appendChild(style);
+                                safeAppendStyle(style);
                             }}
                             style.innerHTML = css;
                         }}
@@ -1112,6 +1178,17 @@ async fn report_webview_navigation(
 }
 
 #[tauri::command]
+fn report_open_new_tab(app: tauri::AppHandle, url: String) {
+    let _ = app.emit(
+        "open-new-tab",
+        serde_json::json!({
+            "url": url
+        }),
+    );
+}
+
+
+#[tauri::command]
 async fn close_webview(app: AppHandle, label: String) -> Result<(), String> {
     #[cfg(desktop)]
     {
@@ -1446,6 +1523,7 @@ pub fn run() {
             set_privacy_shield,
             get_cosmetic_rules,
             report_webview_navigation,
+            report_open_new_tab,
             sync_extensions,
             set_proxy_config,
             set_window_theme

@@ -94,11 +94,18 @@ export default function App() {
         try {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.map(s => ({
-              ...s,
-              isSleeping: s.isSleeping ?? false,
-              lastAccessed: s.lastAccessed ?? Date.now()
-            }));
+            return parsed.map(s => {
+              let id = s.id;
+              if (id && !id.startsWith('session-')) {
+                id = `session-${id}`;
+              }
+              return {
+                ...s,
+                id,
+                isSleeping: s.isSleeping ?? false,
+                lastAccessed: s.lastAccessed ?? Date.now()
+              };
+            });
           }
         } catch (e) {
           console.error("Failed to parse saved sessions");
@@ -111,7 +118,12 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
     if (localStorage.getItem('rc_restore_tabs') === 'true') {
       const savedId = localStorage.getItem('rc_active_session');
-      if (savedId) return savedId;
+      if (savedId) {
+        if (!savedId.startsWith('session-')) {
+          return `session-${savedId}`;
+        }
+        return savedId;
+      }
     }
     return null;
   });
@@ -273,7 +285,9 @@ export default function App() {
     window.addEventListener('rc-show-toast', handleShowToast);
 
     // Initial sync of extensions to Rust backend on startup
-    syncExtensionsToRust().catch(err => console.error("Error doing startup extensions sync:", err));
+    if ((window as any).__TAURI_INTERNALS__) {
+      syncExtensionsToRust().catch(err => console.error("Error doing startup extensions sync:", err));
+    }
 
     // Initial sync of proxy settings to Rust backend on startup
     const storedProxy = localStorage.getItem('rc_proxy_config');
@@ -592,7 +606,7 @@ export default function App() {
 
   const handleCreateSession = async (url: string = "") => {
     const newSession: Session = {
-      id: Math.random().toString(36).substring(7),
+      id: `session-${Math.random().toString(36).substring(7)}`,
       title: (url === "" || url === "about:blank") ? "New Tab" : url,
       url: url,
       isSleeping: false,

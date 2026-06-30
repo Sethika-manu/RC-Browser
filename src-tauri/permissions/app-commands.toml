@@ -21,6 +21,7 @@ allow = [
     "get_cosmetic_rules",
     "report_webview_navigation",
     "report_open_new_tab",
+    "report_webview_click",
     "sync_extensions",
     "set_proxy_config",
     "set_window_theme"
@@ -43,3 +44,9 @@ identifier = "allow-report-webview-navigation"
 description = "Allows invoking report_webview_navigation command"
 [permission.commands]
 allow = ["report_webview_navigation"]
+
+[[permission]]
+identifier = "allow-report-webview-click"
+description = "Allows invoking report_webview_click command"
+[permission.commands]
+allow = ["report_webview_click"]

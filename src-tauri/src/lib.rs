@@ -462,16 +462,29 @@ async fn open_webview(
                                 r#"
                                 try {{
                                     (function() {{
-                                        const style = document.createElement('style');
-                                        style.id = 'rc-extension-css-{}';
-                                        style.textContent = `{}`;
-                                        (document.head || document.documentElement).appendChild(style);
+                                        const injectCss = () => {{
+                                            const parent = document.head || document.documentElement;
+                                            if (parent) {{
+                                                let style = document.getElementById('rc-extension-css-{}');
+                                                if (!style) {{
+                                                    style = document.createElement('style');
+                                                    style.id = 'rc-extension-css-{}';
+                                                    style.textContent = `{}`;
+                                                    parent.appendChild(style);
+                                                }}
+                                            }}
+                                        }};
+                                        if (document.readyState === 'loading') {{
+                                            document.addEventListener('DOMContentLoaded', injectCss);
+                                        }} else {{
+                                            injectCss();
+                                        }}
                                     }})();
                                 }} catch(e) {{
                                     console.error("Error applying extension CSS {}:", e);
                                 }}
                                 "#,
-                                ext.id, escaped_css, ext.name
+                                ext.id, ext.id, escaped_css, ext.name
                             ));
                         }
                     }
@@ -874,11 +887,13 @@ async fn open_webview(
                 // --- Passive URL & Title listener ---
                 const reportNav = async () => {{
                     try {{
+                        const currentUrl = window.location.href;
+                        if (!currentUrl || currentUrl === "about:blank") return;
                         const invokeFn = window.__TAURI__?.core?.invoke || window.__TAURI_INTERNALS__?.invoke;
                         if (invokeFn) {{
                             await invokeFn("report_webview_navigation", {{
                                 label: window.__webviewLabel || "",
-                                url: window.location.href,
+                                url: currentUrl,
                                 title: document.title || window.location.hostname
                             }});
                         }}
@@ -974,6 +989,19 @@ async fn open_webview(
                 try {{
                     patchHistory();
                 }} catch (e) {{}}
+
+                // Close menu dropdowns on webview click/mousedown/pointerdown
+                const reportClick = () => {{
+                    try {{
+                        const invokeFn = window.__TAURI__?.core?.invoke || window.__TAURI_INTERNALS__?.invoke;
+                        if (invokeFn) {{
+                            invokeFn("report_webview_click");
+                        }}
+                    }} catch(e) {{}}
+                }};
+                window.addEventListener('mousedown', reportClick, true);
+                window.addEventListener('pointerdown', reportClick, true);
+                window.addEventListener('click', reportClick, true);
 
             }})();
             "#,
@@ -1185,6 +1213,11 @@ fn report_open_new_tab(app: tauri::AppHandle, url: String) {
             "url": url
         }),
     );
+}
+
+#[tauri::command]
+fn report_webview_click(app: tauri::AppHandle) {
+    let _ = app.emit("webview-click", ());
 }
 
 
@@ -1439,6 +1472,34 @@ async fn navigate_webview(app: AppHandle, label: String, url: String) -> Result<
     Ok(())
 }
 
+#[cfg(target_os = "windows")]
+#[link(name = "psapi")]
+extern "system" {
+    fn GetCurrentProcess() -> *mut std::ffi::c_void;
+    fn GetProcessMemoryInfo(
+        process: *mut std::ffi::c_void,
+        counters: *mut PROCESS_MEMORY_COUNTERS_EX,
+        cb: u32,
+    ) -> i32;
+}
+
+#[cfg(target_os = "windows")]
+#[repr(C)]
+#[allow(non_snake_case)]
+struct PROCESS_MEMORY_COUNTERS_EX {
+    cb: u32,
+    PageFaultCount: u32,
+    PeakWorkingSetSize: usize,
+    WorkingSetSize: usize,
+    QuotaPeakPagedPoolUsage: usize,
+    QuotaPagedPoolUsage: usize,
+    QuotaPeakNonPagedPoolUsage: usize,
+    QuotaNonPagedPoolUsage: usize,
+    PagefileUsage: usize,
+    PeakPagefileUsage: usize,
+    PrivateUsage: usize,
+}
+
 #[tauri::command]
 async fn get_system_metrics(
     #[allow(unused_variables)] state: tauri::State<'_, SystemState>,
@@ -1457,7 +1518,21 @@ async fn get_system_metrics(
             } else {
                 process.cpu_usage()
             };
+
+            #[cfg(target_os = "windows")]
+            let ram = unsafe {
+                let mut counters: PROCESS_MEMORY_COUNTERS_EX = std::mem::zeroed();
+                counters.cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32;
+                if GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, counters.cb) != 0 {
+                    (counters.PrivateUsage as u64) / 1024 / 1024
+                } else {
+                    process.memory() / 1024 / 1024
+                }
+            };
+
+            #[cfg(not(target_os = "windows"))]
             let ram = process.memory() / 1024 / 1024;
+
             let ping = get_ping();
 
             Ok(SystemMetrics { cpu, ram, ping })
@@ -1524,6 +1599,7 @@ pub fn run() {
             get_cosmetic_rules,
             report_webview_navigation,
             report_open_new_tab,
+            report_webview_click,
             sync_extensions,
             set_proxy_config,
             set_window_theme

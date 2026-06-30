@@ -543,6 +543,12 @@
           "markdownDescription": "Allows invoking report_open_new_tab command"
         },
         {
+          "description": "Allows invoking report_webview_click command",
+          "type": "string",
+          "const": "allow-report-webview-click",
+          "markdownDescription": "Allows invoking report_webview_click command"
+        },
+        {
           "description": "Allows invoking report_webview_navigation command",
           "type": "string",
           "const": "allow-report-webview-navigation",

@@ -100,7 +100,7 @@ export const WorkspacePanel = ({
 
     // Create new session objects
     const restoredSessions: Session[] = workspaceToRestore.urls.map(url => ({
-      id: Math.random().toString(36).substring(7),
+      id: `session-${Math.random().toString(36).substring(7)}`,
       title: (url === "" || url === "about:blank") ? "New Tab" : url,
       url: url,
       isSleeping: false,

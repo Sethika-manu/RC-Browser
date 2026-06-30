@@ -61,7 +61,9 @@ export const Extensions = () => {
         active: !ext.enabled
       };
       await saveExtension(updated);
-      await syncExtensionsToRust();
+      if ((window as any).__TAURI_INTERNALS__) {
+        await syncExtensionsToRust();
+      }
       await loadExtensions();
       showToast(`${ext.name} ${updated.enabled ? 'Enabled' : 'Disabled'}`);
 
@@ -69,31 +71,10 @@ export const Extensions = () => {
         playVoiceAssist('/sounds/ext-on.mp3');
       }
 
-      // Dynamic apply for Reader Mode
-      if (ext.id === 'reader-mode') {
-        const activeId = localStorage.getItem('rc_active_session');
-        if (activeId) {
-          if (updated.enabled) {
-            // Inject CSS dynamically and add active class
-            const escapedCss = updated.css.replace(/`/g, "\\`").replace(/\$/g, "\\$");
-            const js = `(function() {
-              const styleId = 'rc-extension-css-reader-mode';
-              let style = document.getElementById(styleId);
-              if (!style) {
-                style = document.createElement('style');
-                style.id = styleId;
-                style.textContent = \`${escapedCss}\`;
-                (document.head || document.documentElement).appendChild(style);
-              }
-              document.body.classList.add('rc-reader-mode-active');
-            })()`;
-            await invoke("trigger_download", { label: activeId, url: `javascript:${js}` }).catch(() => {});
-          } else {
-            // Remove active class
-            const js = `document.body.classList.remove('rc-reader-mode-active');`;
-            await invoke("trigger_download", { label: activeId, url: `javascript:${js}` }).catch(() => {});
-          }
-        }
+      const activeId = localStorage.getItem('rc_active_session');
+      if (activeId && (window as any).__TAURI_INTERNALS__) {
+        // Reload active webview to apply or clean up extension changes cleanly via native engine
+        await invoke("reload_webview", { label: activeId }).catch(() => {});
       }
     } catch (e) {
       console.error("Failed to toggle extension:", e);

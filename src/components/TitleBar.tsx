@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { X, Minus, Square, Copy, Search, ArrowLeft, ArrowRight, RotateCw, Home, Star, Shield, Mail, RefreshCw, Trash2, ExternalLink, Loader2, Columns, Timer, MoreVertical, Puzzle, Settings, History as HistoryIcon, Download, Link2, Layers } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
+import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { generateEmail, getInbox, getMessageDetails, TempMailMessage, TempMailDetails } from "../lib/tempMail";
 
@@ -314,19 +315,22 @@ export const TitleBar = ({
 
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuPanelRef = useRef<HTMLDivElement>(null);
   const proxyRef = useRef<HTMLDivElement>(null);
+  const proxyPanelRef = useRef<HTMLDivElement>(null);
   const tempMailRef = useRef<HTMLDivElement>(null);
+  const tempMailPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (menuRef.current && !menuRef.current.contains(target)) {
+      if (menuRef.current && !menuRef.current.contains(target) && (!menuPanelRef.current || !menuPanelRef.current.contains(target))) {
         setShowMenu(false);
       }
-      if (proxyRef.current && !proxyRef.current.contains(target)) {
+      if (proxyRef.current && !proxyRef.current.contains(target) && (!proxyPanelRef.current || !proxyPanelRef.current.contains(target))) {
         setShowProxyPanel(false);
       }
-      if (tempMailRef.current && !tempMailRef.current.contains(target)) {
+      if (tempMailRef.current && !tempMailRef.current.contains(target) && (!tempMailPanelRef.current || !tempMailPanelRef.current.contains(target))) {
         setShowTempMailPanel(false);
       }
     };
@@ -514,6 +518,17 @@ export const TitleBar = ({
     window.addEventListener('search-suggestions-cleared', handleSuggestionsCleared);
     return () => {
       window.removeEventListener('search-suggestions-cleared', handleSuggestionsCleared);
+    };
+  }, []);
+
+  useEffect(() => {
+    const unlistenPromise = listen('webview-click', () => {
+      setShowMenu(false);
+      setShowProxyPanel(false);
+      setShowTempMailPanel(false);
+    });
+    return () => {
+      unlistenPromise.then(unlisten => unlisten());
     };
   }, []);
 
@@ -732,7 +747,7 @@ export const TitleBar = ({
 
   const renderProxyPanel = (layoutClasses: string) => (
     <div
-      ref={proxyRef}
+      ref={proxyPanelRef}
       className={`absolute w-72 bg-white dark:bg-[#0c0c0c] border border-neutral-200 dark:border-white/10 rounded-2xl shadow-2xl p-5 z-[999999] text-left cursor-default select-text ${layoutClasses}`}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -835,7 +850,7 @@ export const TitleBar = ({
 
   const renderTempMailPanel = (layoutClasses: string) => (
     <div
-      ref={tempMailRef}
+      ref={tempMailPanelRef}
       className={`absolute w-[340px] bg-white dark:bg-[#0c0c0c] border border-neutral-200 dark:border-white/10 rounded-2xl shadow-2xl p-5 z-[999999] text-left cursor-default select-text flex flex-col gap-4 ${layoutClasses}`}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -984,7 +999,7 @@ export const TitleBar = ({
 
   const renderMenuPanel = (layoutClasses: string) => (
     <motion.div
-      ref={menuRef}
+      ref={menuPanelRef}
       initial={{ opacity: 0, scale: 0.95, y: -10 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95, y: -10 }}

@@ -50,6 +50,7 @@ interface Session {
   isSleeping?: boolean;
   lastAccessed?: number;
   side?: 'left' | 'right';
+  isLoading?: boolean;
 }
 
 const getFileName = (path: string, url: string) => {
@@ -246,6 +247,11 @@ export default function App() {
       setSessions(prev => prev.map(s => s.id === label ? { ...s, title: (title === "about:blank" || title === "") ? "New Tab" : title } : s));
     });
 
+    const unlistenLoadingPromise = listen('webview-loading-changed', (event: any) => {
+      const { label, loading } = event.payload;
+      setSessions(prev => prev.map(s => s.id === label ? { ...s, isLoading: loading } : s));
+    });
+
     const handleHistoryUpdate = (e: any) => {
       const fileName = getFileName(e.detail.path, e.detail.url);
       setDownloadHistory(prev => {
@@ -304,6 +310,7 @@ export default function App() {
       unlistenUrlPromise.then(unlisten => unlisten());
       unlistenTitlePromise.then(unlisten => unlisten());
       unlistenNewTabPromise.then(unlisten => unlisten());
+      unlistenLoadingPromise.then(unlisten => unlisten());
       window.removeEventListener('rc-download-finished', handleHistoryUpdate);
       window.removeEventListener('rc-recreate-active-webview', handleRecreateWebview);
       window.removeEventListener('rc-show-toast', handleShowToast);

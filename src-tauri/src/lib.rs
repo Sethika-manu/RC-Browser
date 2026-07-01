@@ -403,6 +403,22 @@ async fn open_webview(
                 );
             });
 
+            let label_for_load = label.clone();
+            webview_builder = webview_builder.on_page_load(move |webview, payload| {
+                let loading = match payload.event() {
+                    tauri::webview::PageLoadEvent::Started => true,
+                    tauri::webview::PageLoadEvent::Finished => false,
+                    _ => return,
+                };
+                let _ = webview.app_handle().emit(
+                    "webview-loading-changed",
+                    serde_json::json!({
+                        "label": &label_for_load,
+                        "loading": loading
+                    }),
+                );
+            });
+
             if let Some(proxy_state) = app.try_state::<ProxyState>() {
                 if let Ok(config) = proxy_state.0.lock() {
                     if config.enabled && !config.ip.trim().is_empty() && !config.port.trim().is_empty() {

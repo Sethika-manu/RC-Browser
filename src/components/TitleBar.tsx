@@ -55,9 +55,59 @@ export function parseBangSearch(query: string): string | null {
       return `https://en.wikipedia.org/wiki/Special:Search?search=${encodedQuery}`;
     case "g":
       return `https://www.google.com/search?q=${encodedQuery}`;
-    default:
-      return null;
   }
+  return null;
+}
+
+export function getAutocompleteMatch(val: string): string | null {
+  const query = val.trim().toLowerCase();
+  if (!query) return null;
+
+  // Fallback static popular sites list
+  const popularSites = [
+    "youtube.com",
+    "google.com",
+    "github.com",
+    "wikipedia.org",
+    "facebook.com",
+    "twitter.com",
+    "reddit.com",
+    "amazon.com",
+    "netflix.com"
+  ];
+
+  // Try to match from browser history first
+  try {
+    const rawHistory = localStorage.getItem('app_browser_history');
+    if (rawHistory) {
+      const history = JSON.parse(rawHistory);
+      if (Array.isArray(history)) {
+        for (const item of [...history].reverse()) {
+          const matchStr = item.queryOrUrl.trim();
+          const cleanMatch = matchStr.replace(/^(https?:\/\/)?(www\.)?/, "").toLowerCase();
+          
+          // Match if clean match starts with the query
+          if (cleanMatch.startsWith(query) && cleanMatch !== query) {
+            // Return match with proper formatting
+            const suffix = cleanMatch.substring(query.length);
+            return val + suffix;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Failed to parse app_browser_history during autocomplete match", e);
+  }
+
+  // Fallback to static list
+  for (const site of popularSites) {
+    if (site.startsWith(query) && site !== query) {
+      const suffix = site.substring(query.length);
+      return val + suffix;
+    }
+  }
+
+  return null;
 }
 
 interface TitleBarProps {
@@ -65,7 +115,7 @@ interface TitleBarProps {
   searchValue: string;
   onSearchChange: (value: string) => void;
   activeSessionId: string | null;
-  sessions?: { id: string; title: string; url: string }[];
+  sessions?: { id: string; title: string; url: string; isLoading?: boolean }[];
   isSplitScreen?: boolean;
   onToggleSplitScreen?: () => void;
   onDownloadsClick?: () => void;
@@ -98,6 +148,7 @@ export const TitleBar = ({
   onToggleZenMode
 }: TitleBarProps) => {
   const activeSession = sessions?.find(s => s.id === activeSessionId);
+  const isLoading = activeSession?.isLoading || false;
   const isOnWebpage = !!(activeSession && activeSession.url && activeSession.url !== "" && activeSession.url !== "about:blank");
 
   const [isBookmarked, setIsBookmarked] = useState(false);
@@ -307,11 +358,13 @@ export const TitleBar = ({
   const [isLoadingMessage, setIsLoadingMessage] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCheckingInbox, setIsCheckingInbox] = useState(false);
+  const [isTempMailLoading, setIsTempMailLoading] = useState(false);
 
   const knownEmailIdsRef = useRef<Set<string>>(new Set());
 
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<{ queryOrUrl: string; timestamp: number }[]>([]);
+  const searchBarInputRef = useRef<HTMLInputElement>(null);
 
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -417,6 +470,8 @@ export const TitleBar = ({
   }, [tempEmail, tempMailToken, isMobile]);
 
   const handleGenerateTempMail = async () => {
+    if (isTempMailLoading) return; // Prevent multiple clicks
+    setIsTempMailLoading(true);
     setIsGenerating(true);
     try {
       const { email, token } = await generateEmail();
@@ -451,6 +506,7 @@ export const TitleBar = ({
       }));
     } finally {
       setIsGenerating(false);
+      setIsTempMailLoading(false);
     }
   };
 
@@ -750,6 +806,8 @@ export const TitleBar = ({
       ref={proxyPanelRef}
       className={`absolute w-72 bg-white dark:bg-[#0c0c0c] border border-neutral-200 dark:border-white/10 rounded-2xl shadow-2xl p-5 z-[999999] text-left cursor-default select-text ${layoutClasses}`}
       onMouseDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
     >
       <div className="flex items-center justify-between mb-4 pb-2.5 border-b border-neutral-100 dark:border-white/5">
         <div className="flex items-center gap-2">
@@ -853,6 +911,8 @@ export const TitleBar = ({
       ref={tempMailPanelRef}
       className={`absolute w-[340px] bg-white dark:bg-[#0c0c0c] border border-neutral-200 dark:border-white/10 rounded-2xl shadow-2xl p-5 z-[999999] text-left cursor-default select-text flex flex-col gap-4 ${layoutClasses}`}
       onMouseDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
     >
       {/* Panel Header */}
       <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-white/5">
@@ -1006,6 +1066,9 @@ export const TitleBar = ({
       transition={{ duration: 0.15 }}
       className={`absolute w-52 bg-white dark:bg-[#0c0c0c] border border-neutral-200 dark:border-white/10 rounded-2xl shadow-2xl py-2 z-[999999] text-left cursor-default flex flex-col gap-0.5 ${layoutClasses}`}
       onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
     >
       <button
         onClick={() => {
@@ -1111,6 +1174,7 @@ export const TitleBar = ({
       </button>
 
       <button
+        disabled={isTempMailLoading}
         onClick={() => {
           if (!tempEmail) {
             handleGenerateTempMail();
@@ -1122,10 +1186,14 @@ export const TitleBar = ({
         }}
         className={`w-full flex lg:hidden items-center gap-3 px-4 py-2.5 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors text-left ${
           tempEmail ? "text-indigo-500 bg-indigo-500/5" : "text-neutral-700 dark:text-neutral-300"
-        }`}
+        } ${isTempMailLoading ? "opacity-50 cursor-not-allowed" : ""}`}
       >
-        <Mail size={14} className={tempEmail ? "text-indigo-500" : ""} />
-        <span>Temp Mail</span>
+        {isTempMailLoading ? (
+          <Loader2 size={14} className="animate-spin text-indigo-500" />
+        ) : (
+          <Mail size={14} className={tempEmail ? "text-indigo-500" : ""} />
+        )}
+        <span>{isTempMailLoading ? "Generating..." : "Temp Mail"}</span>
       </button>
 
       <button
@@ -1177,6 +1245,8 @@ export const TitleBar = ({
             <button
               onClick={handleGoBack}
               onMouseDown={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
+              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
               className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/5 text-neutral-500 hover:text-neutral-950 dark:hover:text-white transition-colors rounded-md cursor-pointer"
               title="Go Back"
             >
@@ -1185,6 +1255,8 @@ export const TitleBar = ({
             <button
               onClick={handleGoForward}
               onMouseDown={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
+              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
               className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/5 text-neutral-500 hover:text-neutral-950 dark:hover:text-white transition-colors rounded-md cursor-pointer"
               title="Go Forward"
             >
@@ -1193,14 +1265,18 @@ export const TitleBar = ({
             <button
               onClick={handleReload}
               onMouseDown={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
+              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
               className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/5 text-neutral-500 hover:text-neutral-950 dark:hover:text-white transition-colors rounded-md ml-0.5"
               title="Reload"
             >
-              <RotateCw size={14} />
+              <RotateCw size={14} className={isLoading ? "animate-spin text-accent" : ""} />
             </button>
             <button
               onClick={handleGoHomeSession}
               onMouseDown={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
+              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
               className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/5 text-neutral-500 hover:text-neutral-950 dark:hover:text-white transition-colors rounded-md ml-0.5"
               title="Home Start Page"
             >
@@ -1209,6 +1285,8 @@ export const TitleBar = ({
             <button
               onClick={handleToggleBookmark}
               onMouseDown={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
+              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
               className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors rounded-md ml-0.5 cursor-pointer flex items-center justify-center"
               title={isBookmarked ? "Remove Bookmark" : "Bookmark this Page"}
             >
@@ -1217,17 +1295,54 @@ export const TitleBar = ({
           </div>
         )}
         
-        <form onSubmit={handleSearch} className="relative group flex-1 min-w-[250px] flex-shrink">
+        <form 
+          onSubmit={handleSearch} 
+          onMouseDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          className="relative group flex-1 min-w-[250px] flex-shrink"
+        >
           <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
             <Search size={12} className="text-neutral-400 dark:text-neutral-600 group-focus-within:text-accent transition-colors" />
           </div>
           <input
+            ref={searchBarInputRef}
             type="text"
             value={searchValue}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              const inputType = (e.nativeEvent as any).inputType;
+              const isDeleting = inputType && inputType.includes('delete');
+              
+              if (!isDeleting) {
+                const match = getAutocompleteMatch(val);
+                if (match && match.toLowerCase() !== val.toLowerCase()) {
+                  const originalLength = val.length;
+                  const fullLength = match.length;
+                  
+                  onSearchChange(match);
+                  
+                  setTimeout(() => {
+                    if (searchBarInputRef.current) {
+                      searchBarInputRef.current.value = match;
+                      searchBarInputRef.current.setSelectionRange(originalLength, fullLength);
+                    }
+                  }, 0);
+                  return;
+                }
+              }
+              onSearchChange(val);
+            }}
             onFocus={handleFocus}
             onBlur={() => setShowSuggestions(false)}
             onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            style={{ 
+              WebkitAppRegion: 'no-drag',
+              userSelect: 'text',
+              cursor: 'text'
+            } as any}
             placeholder="Search or enter URL..."
             className="w-full bg-neutral-100 dark:bg-neutral-900/50 border border-neutral-200 dark:border-white/5 rounded-lg py-1.5 pl-9 pr-4 text-xs text-neutral-800 dark:text-neutral-300 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:border-accent/30 focus:bg-white dark:focus:bg-neutral-900/80 transition-all"
           />
@@ -1236,6 +1351,8 @@ export const TitleBar = ({
             <div 
               className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-[#0a0a0a] border border-neutral-200 dark:border-white/10 rounded-lg shadow-xl overflow-hidden z-[99999]"
               onMouseDown={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
+              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             >
               {suggestions.map((item, idx) => (
                 <div
@@ -1334,6 +1451,8 @@ export const TitleBar = ({
               <button
                 onClick={onToggleSplitScreen}
                 onMouseDown={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
+                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 className={`p-2 transition-all duration-300 rounded-lg cursor-pointer hidden lg:flex items-center justify-center gap-1.5 text-xs font-medium border ${
                   isSplitScreen
                     ? "bg-accent/10 border-accent/30 text-accent shadow-md shadow-accent/10"
@@ -1354,6 +1473,8 @@ export const TitleBar = ({
                   setShowTempMailPanel(false);
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
+                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 className={`p-2 transition-all duration-300 rounded-lg cursor-pointer hidden lg:flex items-center justify-center gap-1.5 text-xs font-medium border ${
                   proxyEnabled
                     ? proxyStatus === 'success'
@@ -1387,6 +1508,7 @@ export const TitleBar = ({
             {/* Built-in Temp Mail Section */}
             <div className="relative flex-shrink-0" ref={tempMailRef}>
               <button
+                disabled={isTempMailLoading}
                 onClick={() => {
                   if (!tempEmail) {
                     handleGenerateTempMail();
@@ -1396,18 +1518,26 @@ export const TitleBar = ({
                   setShowProxyPanel(false);
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
+                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 className={`p-2 transition-all duration-300 rounded-lg cursor-pointer hidden lg:flex items-center justify-center gap-1.5 text-xs font-medium border ${
                   tempEmail
-                    ? "bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/30 text-indigo-650 dark:text-indigo-400 shadow-[0_0_12px_rgba(99,102,241,0.15)] animate-none"
+                    ? "bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/30 text-indigo-655 dark:text-indigo-400 shadow-[0_0_12px_rgba(99,102,241,0.15)] animate-none"
                     : "bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-white/5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
-                }`}
+                } ${isTempMailLoading ? "opacity-50 cursor-not-allowed" : ""}`}
                 title="Temporary Email Generator"
               >
-                <Mail 
-                  size={14} 
-                  className={tempEmail ? "text-indigo-500" : ""}
-                />
-                <span className="hidden xl:inline">Temp Mail</span>
+                {isTempMailLoading ? (
+                  <Loader2 size={14} className="animate-spin text-indigo-500" />
+                ) : (
+                  <Mail 
+                    size={14} 
+                    className={tempEmail ? "text-indigo-500" : ""}
+                  />
+                )}
+                <span className="hidden xl:inline">
+                  {isTempMailLoading ? "Generating..." : "Temp Mail"}
+                </span>
                 <span className={`w-1.5 h-1.5 rounded-full ${
                   tempEmail 
                     ? "bg-emerald-500 mail-pulse-green" 
@@ -1422,6 +1552,8 @@ export const TitleBar = ({
               <button
                 onClick={() => setShowMenu(!showMenu)}
                 onMouseDown={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
+                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 className={`p-2 transition-all duration-300 rounded-lg cursor-pointer flex items-center justify-center text-neutral-500 hover:text-neutral-850 dark:hover:text-neutral-200 border ${
                   showMenu
                     ? "bg-neutral-100 dark:bg-white/10 border-neutral-200 dark:border-white/10 text-neutral-800 dark:text-neutral-200"
@@ -1445,6 +1577,8 @@ export const TitleBar = ({
         <button
           onClick={handleMinimize}
           onMouseDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           className="p-2 hover:bg-white/5 transition-colors rounded-md"
         >
           <Minus size={14} className="text-neutral-500" />
@@ -1452,6 +1586,8 @@ export const TitleBar = ({
         <button
           onClick={handleMaximize}
           onMouseDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           className="p-2 hover:bg-white/5 transition-colors rounded-md"
         >
           {isMaximized ? <Copy size={14} className="text-neutral-500" /> : <Square size={14} className="text-neutral-500" />}
@@ -1459,6 +1595,8 @@ export const TitleBar = ({
         <button
           onClick={handleClose}
           onMouseDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           className="p-2 hover:bg-red-500/10 hover:text-red-500 transition-colors rounded-md group"
         >
           <X size={14} className="text-neutral-500 group-hover:text-red-500" />

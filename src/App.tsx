@@ -40,8 +40,9 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import { getVersion } from "@tauri-apps/api/app";
 import { open } from "@tauri-apps/plugin-shell"; 
 import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { logHistoryVisit } from "./lib/historyDb";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 interface Session {
   id: string;
@@ -172,6 +173,11 @@ export default function App() {
   const focusedSessionIdRef = useRef(focusedSessionId);
   const appViewRef = useRef(appView);
   const lastLoadedUrlRef = useRef<string | null>(null);
+
+  const handleNavigateRef = useRef(handleNavigate);
+  useEffect(() => {
+    handleNavigateRef.current = handleNavigate;
+  }, [handleNavigate]);
 
   useEffect(() => {
     sessionsRef.current = sessions;
@@ -304,6 +310,29 @@ export default function App() {
       } catch (e) {}
     }
 
+    const unlistenFileDropPromise = listen('tauri://file-drop', (event: any) => {
+      const paths = event.payload;
+      if (Array.isArray(paths) && paths.length > 0) {
+        handleNavigateRef.current(paths[0]);
+      }
+    });
+
+    const unlistenDragDropPromise = listen('tauri://drag-drop', (event: any) => {
+      if (event.payload) {
+        let paths: string[] = [];
+        if (Array.isArray(event.payload.paths)) {
+          paths = event.payload.paths;
+        } else if (event.payload.type === 'drop' && Array.isArray(event.payload.paths)) {
+          paths = event.payload.paths;
+        } else if (Array.isArray(event.payload)) {
+          paths = event.payload;
+        }
+        if (paths && paths.length > 0) {
+          handleNavigateRef.current(paths[0]);
+        }
+      }
+    });
+
     return () => {
       window.removeEventListener('rc-native-context-menu', handleNativeContextMenu);
       unlistenPromise.then(unlisten => unlisten());
@@ -314,6 +343,8 @@ export default function App() {
       window.removeEventListener('rc-download-finished', handleHistoryUpdate);
       window.removeEventListener('rc-recreate-active-webview', handleRecreateWebview);
       window.removeEventListener('rc-show-toast', handleShowToast);
+      unlistenFileDropPromise.then(unlisten => unlisten());
+      unlistenDragDropPromise.then(unlisten => unlisten());
     };
   }, []);
 
@@ -569,14 +600,49 @@ export default function App() {
     };
   }, [isZenMode, isZenPaused]);
 
-  const handleNavigate = async (url: string) => {
+  async function handleNavigate(url: string) {
     let targetUrl = url.trim();
     if (targetUrl !== "" && targetUrl !== "about:blank") {
-      const isUrl = targetUrl.includes(".") && !targetUrl.includes(" ");
-      if (!targetUrl.startsWith("http") && isUrl) {
-        targetUrl = `https://${targetUrl}`;
-      } else if (!isUrl) {
-        targetUrl = `https://www.google.com/search?q=${encodeURIComponent(targetUrl)}`;
+      // Check if it's a local file path
+      const isLocalFile = 
+        /^[a-zA-Z]:[/\\]/i.test(targetUrl) || // Windows path (e.g., C:\ or D:/)
+        targetUrl.startsWith('\\\\') ||      // Windows UNC path (e.g., \\server\share)
+        (targetUrl.startsWith('/') && (
+          targetUrl.startsWith('/Users/') ||
+          targetUrl.startsWith('/home/') ||
+          targetUrl.startsWith('/var/') ||
+          targetUrl.startsWith('/tmp/') ||
+          targetUrl.startsWith('/etc/') ||
+          targetUrl.startsWith('/opt/')
+        )) ||
+        targetUrl.startsWith('file://') ||
+        targetUrl.startsWith('asset://');
+
+      if (isLocalFile) {
+        let cleanPath = targetUrl;
+        if (cleanPath.startsWith("file:///")) {
+          cleanPath = cleanPath.substring(8);
+        } else if (cleanPath.startsWith("file://")) {
+          cleanPath = cleanPath.substring(7);
+        } else if (cleanPath.startsWith("asset://localhost/")) {
+          cleanPath = cleanPath.substring(18);
+        } else if (cleanPath.startsWith("asset://")) {
+          cleanPath = cleanPath.substring(8);
+        }
+        // Normalize backslashes
+        cleanPath = cleanPath.replace(/\\/g, '/');
+        try {
+          targetUrl = convertFileSrc(cleanPath);
+        } catch (e) {
+          targetUrl = `asset://localhost/${encodeURI(cleanPath)}`;
+        }
+      } else {
+        const isUrl = targetUrl.includes(".") && !targetUrl.includes(" ");
+        if (!targetUrl.startsWith("http") && isUrl) {
+          targetUrl = `https://${targetUrl}`;
+        } else if (!isUrl) {
+          targetUrl = `https://www.google.com/search?q=${encodeURIComponent(targetUrl)}`;
+        }
       }
     }
 
@@ -609,9 +675,9 @@ export default function App() {
           .catch((err) => console.warn("Failed to navigate on PC:", err));
       }
     }
-  };
+  }
 
-  const handleCreateSession = async (url: string = "") => {
+  async function handleCreateSession(url: string = "") {
     const newSession: Session = {
       id: `session-${Math.random().toString(36).substring(7)}`,
       title: (url === "" || url === "about:blank") ? "New Tab" : url,
@@ -651,7 +717,7 @@ export default function App() {
         }
       }
     }
-  };
+  }
 
   const handleCloseSession = (id: string) => {
     setSessions(prev => {

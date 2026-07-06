@@ -3,7 +3,6 @@ import {
   Monitor, 
   Shield, 
   Cpu, 
-  Palette, 
   Globe, 
   Keyboard, 
   Info,
@@ -326,14 +325,6 @@ export const Settings = () => {
           icon: <Keyboard size={18} />, 
           label: t.shortcuts, 
           description: t.shortcuts_desc 
-        },
-        { 
-          icon: <Palette size={18} />, 
-          label: t.sidebar, 
-          description: t.sidebar_desc, 
-          toggle: true, 
-          checked: autoHideSidebar, // Connected
-          onClick: () => setAutoHideSidebar(!autoHideSidebar) // Toggle action
         }
       ]
     }

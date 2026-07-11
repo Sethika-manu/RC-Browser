@@ -42,15 +42,13 @@ export const Sidebar = ({
   onSearchClick,
   isSplitScreen = false
 }: SidebarProps) => {
-  const { t, autoHideSidebar } = useSettings();
+  const { t } = useSettings();
   
   // Manual toggle state
   const [isManualCollapsed, setIsManualCollapsed] = useState(false);
-  // Hover state for auto-hide
-  const [isHovered, setIsHovered] = useState(false);
 
-  // Determine actual collapsed state based on settings and hover
-  const isCollapsed = autoHideSidebar ? !isHovered : isManualCollapsed;
+  // Determine actual collapsed state based on manual toggle
+  const isCollapsed = isManualCollapsed;
 
   const handleMouseDownDrag = (e: React.MouseEvent) => {
     if (e.button === 0) {
@@ -69,8 +67,6 @@ export const Sidebar = ({
     <div
       style={{ width: isCollapsed ? 64 : 240 }}
       className="h-full bg-white dark:bg-[#0a0a0a] border-r border-neutral-200 dark:border-white/5 flex flex-col relative z-20 flex-shrink-0 transition-[width] duration-300 ease-in-out"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
       <div 
         data-tauri-drag-region
